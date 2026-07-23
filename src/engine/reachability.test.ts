@@ -48,4 +48,24 @@ describe('findAdvancePath', () => {
     };
     expect(findAdvancePath(stage)).toEqual(['a']);
   });
+
+  it('finds a path when commands are in reverse dependency order', () => {
+    const stage: Stage = {
+      id: 's',
+      title: 't',
+      briefing: [],
+      objective: 'o',
+      clusterInitial: {},
+      commands: [
+        {
+          match: /b/,
+          description: 'b',
+          requiresFacts: ['f1'],
+          outcome: { output: [], advances: true },
+        },
+        { match: /a/, description: 'a', outcome: { output: [], revealsFacts: ['f1'] } },
+      ],
+    };
+    expect(findAdvancePath(stage)).toEqual(['a', 'b']);
+  });
 });
