@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSimStore } from '@/engine/store';
 import { DebriefPanel } from '@/components/DebriefPanel/DebriefPanel';
@@ -9,10 +10,13 @@ export default function DebriefPage() {
   const campaign = useSimStore((state) => state.campaign);
   const resetProgress = useSimStore((state) => state.resetProgress);
 
-  if (!campaign) {
-    if (typeof window !== 'undefined') {
+  useEffect(() => {
+    if (!campaign) {
       router.replace('/campaign-select');
     }
+  }, [campaign, router]);
+
+  if (!campaign) {
     return null;
   }
 
