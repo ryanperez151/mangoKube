@@ -18,4 +18,11 @@ describe('BriefingOverlay', () => {
     fireEvent.click(screen.getByText('Begin'));
     expect(onDismiss).toHaveBeenCalled();
   });
+
+  it('calls onDismiss when Escape key is pressed', () => {
+    const onDismiss = vi.fn();
+    render(<BriefingOverlay title="Recon" objective="o" lines={[]} onDismiss={onDismiss} />);
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(onDismiss).toHaveBeenCalled();
+  });
 });

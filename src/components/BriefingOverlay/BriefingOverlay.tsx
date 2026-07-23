@@ -1,6 +1,6 @@
 'use client';
 
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 interface BriefingOverlayProps {
   title: string;
@@ -10,14 +10,23 @@ interface BriefingOverlayProps {
 }
 
 export function BriefingOverlay({ title, objective, lines, onDismiss }: BriefingOverlayProps) {
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === 'Escape') {
+      onDismiss();
+    }
+  };
+
   return (
-    <AnimatePresence>
-      <motion.div
-        className="fixed inset-0 flex items-center justify-center bg-black/80"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-      >
+    <motion.div
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      tabIndex={-1}
+      onKeyDown={handleKeyDown}
+      className="fixed inset-0 flex items-center justify-center bg-black/80"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+    >
         <div className="max-w-lg space-y-4 rounded-lg bg-mango-900 p-6">
           <h2 className="text-xl font-bold text-mango-500">{title}</h2>
           <div className="space-y-2 text-mango-300">
@@ -31,6 +40,5 @@ export function BriefingOverlay({ title, objective, lines, onDismiss }: Briefing
           </button>
         </div>
       </motion.div>
-    </AnimatePresence>
   );
 }
