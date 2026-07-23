@@ -1,6 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import { useEffect, useRef } from 'react';
 
 interface BriefingOverlayProps {
   title: string;
@@ -10,6 +11,12 @@ interface BriefingOverlayProps {
 }
 
 export function BriefingOverlay({ title, objective, lines, onDismiss }: BriefingOverlayProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    dialogRef.current?.focus();
+  }, []);
+
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === 'Escape') {
       onDismiss();
@@ -18,6 +25,7 @@ export function BriefingOverlay({ title, objective, lines, onDismiss }: Briefing
 
   return (
     <motion.div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-label={title}

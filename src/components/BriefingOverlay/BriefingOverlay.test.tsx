@@ -25,4 +25,10 @@ describe('BriefingOverlay', () => {
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
     expect(onDismiss).toHaveBeenCalled();
   });
+
+  it('receives focus when mounted', () => {
+    render(<BriefingOverlay title="Recon" objective="o" lines={[]} onDismiss={() => {}} />);
+    const dialog = screen.getByRole('dialog');
+    expect(document.activeElement).toBe(dialog);
+  });
 });
