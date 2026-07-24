@@ -140,6 +140,11 @@ export function useHasHydrated(): boolean {
   );
 
   useEffect(() => {
+    // Same `?? false` fallback as the initializer above (this previously
+    // read `?? true`, an inconsistency with no functional effect in a real
+    // browser, where `.persist` is always defined by the time this effect
+    // runs — corrected for consistency, not because it was load-bearing
+    // for any observed bug).
     setHasHydrated(useSimStore.persist?.hasHydrated() ?? false);
     const unsubscribe = useSimStore.persist?.onFinishHydration(() => setHasHydrated(true));
     return unsubscribe;
