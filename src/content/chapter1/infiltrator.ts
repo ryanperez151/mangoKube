@@ -25,7 +25,7 @@ export const infiltratorCampaign: Campaign = {
     'found-clusteradmin-binding': {
       id: 'found-clusteradmin-binding',
       label: 'cluster-admin binding found',
-      detail: 'A RoleBinding ties ci-deploy-bot directly to the built-in cluster-admin ClusterRole.',
+      detail: 'A ClusterRoleBinding ties ci-deploy-bot directly to the built-in cluster-admin ClusterRole.',
     },
     'using-stolen-token': {
       id: 'using-stolen-token',
@@ -130,13 +130,13 @@ export const infiltratorCampaign: Campaign = {
           },
         },
         {
-          match: /^kubectl\s+get\s+rolebindings?\s+(-A|--all-namespaces)$/i,
-          description: 'kubectl get rolebindings -A',
+          match: /^kubectl\s+get\s+clusterrolebindings?$/i,
+          description: 'kubectl get clusterrolebindings',
           requiresFacts: ['found-sa-object'],
           outcome: {
             output: [
-              'NAMESPACE   NAME                    ROLE                       SUBJECT',
-              'build       ci-deploy-bot-binding   ClusterRole/cluster-admin  ServiceAccount/ci-deploy-bot',
+              'NAME                    ROLE                       SUBJECT',
+              'ci-deploy-bot-binding   ClusterRole/cluster-admin  ServiceAccount/ci-deploy-bot',
             ],
             revealsFacts: ['found-clusteradmin-binding'],
           },
