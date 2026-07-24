@@ -140,7 +140,7 @@ export function useHasHydrated(): boolean {
   );
 
   useEffect(() => {
-    setHasHydrated(useSimStore.persist?.hasHydrated() ?? true);
+    setHasHydrated(useSimStore.persist?.hasHydrated() ?? false);
     const unsubscribe = useSimStore.persist?.onFinishHydration(() => setHasHydrated(true));
     return unsubscribe;
   }, []);

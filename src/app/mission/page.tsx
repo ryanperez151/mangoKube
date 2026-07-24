@@ -25,7 +25,14 @@ export default function MissionPage() {
   const hasHydrated = useHasHydrated();
 
   useEffect(() => {
-    if (hasHydrated && !campaignId) {
+    // Read campaignId fresh from the store here rather than trusting the
+    // `campaignId` selector value captured at render time: `hasHydrated`
+    // flips via a separate manually-polled effect (see useHasHydrated),
+    // not through the same zustand subscription tick as `campaignId`, so a
+    // render can transiently see `hasHydrated: true` paired with a
+    // not-yet-updated `campaignId` selector snapshot even though the
+    // store's real, current state already has the correct value.
+    if (hasHydrated && !useSimStore.getState().campaignId) {
       router.replace('/campaign-select');
     }
   }, [hasHydrated, campaignId, router]);

@@ -15,7 +15,11 @@ export default function DebriefPage() {
   const hasHydrated = useHasHydrated();
 
   useEffect(() => {
-    if (hasHydrated && !campaignId) {
+    // See the equivalent comment in src/app/mission/page.tsx: read
+    // campaignId fresh from the store rather than the selector snapshot,
+    // since hasHydrated and campaignId can transiently desync across a
+    // single render.
+    if (hasHydrated && !useSimStore.getState().campaignId) {
       router.replace('/campaign-select');
     }
   }, [hasHydrated, campaignId, router]);
