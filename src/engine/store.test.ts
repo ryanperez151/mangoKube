@@ -1,5 +1,7 @@
+import { createElement } from 'react';
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useSimStore } from './store';
+import { render, screen, waitFor } from '@testing-library/react';
+import { useSimStore, useHasHydrated } from './store';
 import type { Campaign } from '@/content/types';
 
 const testCampaign: Campaign = {
@@ -78,5 +80,29 @@ describe('useSimStore', () => {
     const state = useSimStore.getState();
     expect(state.stageIndex).toBe(0);
     expect(state.terminalHistory[0].output).toEqual(['Command not recognized in this context.']);
+  });
+});
+
+describe('persist hydration', () => {
+  it('exposes a callable hasHydrated() on the persist API', () => {
+    expect(typeof useSimStore.persist.hasHydrated).toBe('function');
+    expect(typeof useSimStore.persist.hasHydrated()).toBe('boolean');
+  });
+
+  it('exposes a callable onFinishHydration() on the persist API', () => {
+    expect(typeof useSimStore.persist.onFinishHydration).toBe('function');
+  });
+
+  it('useHasHydrated resolves to true once mounted in a browser-like (jsdom) environment', async () => {
+    function Probe() {
+      const hasHydrated = useHasHydrated();
+      return createElement('span', null, hasHydrated ? 'hydrated' : 'pending');
+    }
+
+    render(createElement(Probe));
+
+    await waitFor(() => {
+      expect(screen.getByText('hydrated')).toBeInTheDocument();
+    });
   });
 });

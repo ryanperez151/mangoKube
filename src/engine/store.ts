@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { parseCommand } from './terminalParser';
@@ -109,3 +110,15 @@ export const useSimStore = create<SimState>()(
     { name: 'operation-mango-progress' }
   )
 );
+
+export function useHasHydrated(): boolean {
+  const [hasHydrated, setHasHydrated] = useState(useSimStore.persist.hasHydrated());
+
+  useEffect(() => {
+    setHasHydrated(useSimStore.persist.hasHydrated());
+    const unsubscribe = useSimStore.persist.onFinishHydration(() => setHasHydrated(true));
+    return unsubscribe;
+  }, []);
+
+  return hasHydrated;
+}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSimStore } from '@/engine/store';
+import { useSimStore, useHasHydrated } from '@/engine/store';
 import { Terminal } from '@/components/Terminal/Terminal';
 import { ClusterDiagram } from '@/components/ClusterDiagram/ClusterDiagram';
 import { BriefingOverlay } from '@/components/BriefingOverlay/BriefingOverlay';
@@ -19,12 +19,13 @@ export default function MissionPage() {
   const runCommand = useSimStore((state) => state.runCommand);
 
   const [showBriefing, setShowBriefing] = useState(true);
+  const hasHydrated = useHasHydrated();
 
   useEffect(() => {
-    if (!campaign) {
+    if (hasHydrated && !campaign) {
       router.replace('/campaign-select');
     }
-  }, [campaign, router]);
+  }, [hasHydrated, campaign, router]);
 
   useEffect(() => {
     setShowBriefing(true);
@@ -36,7 +37,7 @@ export default function MissionPage() {
     }
   }, [campaign, stageIndex, router]);
 
-  if (!campaign || stageIndex >= campaign.stages.length) {
+  if (!hasHydrated || !campaign || stageIndex >= campaign.stages.length) {
     return null;
   }
 

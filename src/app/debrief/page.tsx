@@ -2,21 +2,22 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSimStore } from '@/engine/store';
+import { useSimStore, useHasHydrated } from '@/engine/store';
 import { DebriefPanel } from '@/components/DebriefPanel/DebriefPanel';
 
 export default function DebriefPage() {
   const router = useRouter();
   const campaign = useSimStore((state) => state.campaign);
   const resetProgress = useSimStore((state) => state.resetProgress);
+  const hasHydrated = useHasHydrated();
 
   useEffect(() => {
-    if (!campaign) {
+    if (hasHydrated && !campaign) {
       router.replace('/campaign-select');
     }
-  }, [campaign, router]);
+  }, [hasHydrated, campaign, router]);
 
-  if (!campaign) {
+  if (!hasHydrated || !campaign) {
     return null;
   }
 
