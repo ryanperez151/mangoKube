@@ -118,12 +118,12 @@ export const sentinelCampaign: Campaign = {
       clusterInitial: { highlightNodeIds: ['ci-deploy-bot'], status: 'suspicious' },
       commands: [
         {
-          match: /^kubectl\s+get\s+rolebindings?\s+(-A|--all-namespaces)$/i,
-          description: 'kubectl get rolebindings -A',
+          match: /^kubectl\s+get\s+clusterrolebindings?$/i,
+          description: 'kubectl get clusterrolebindings',
           outcome: {
             output: [
-              'NAMESPACE   NAME                    ROLE                       SUBJECT',
-              'build       ci-deploy-bot-binding   ClusterRole/cluster-admin  ServiceAccount/ci-deploy-bot',
+              'NAME                    ROLE                       SUBJECT',
+              'ci-deploy-bot-binding   ClusterRole/cluster-admin  ServiceAccount/ci-deploy-bot',
             ],
             revealsFacts: ['found-binding'],
           },
