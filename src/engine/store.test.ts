@@ -2,6 +2,7 @@ import { createElement } from 'react';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { useSimStore, useHasHydrated } from './store';
+import { infiltratorCampaign } from '@/content/chapter1/infiltrator';
 import type { Campaign } from '@/content/types';
 
 const testCampaign: Campaign = {
@@ -104,5 +105,43 @@ describe('persist hydration', () => {
     await waitFor(() => {
       expect(screen.getByText('hydrated')).toBeInTheDocument();
     });
+  });
+});
+
+describe('persisted state excludes non-serializable campaign content (regression)', () => {
+  it('does not persist the campaign object (with its RegExp match fields) to localStorage, but does persist campaignId', () => {
+    useSimStore.getState().startCampaign(infiltratorCampaign);
+
+    const raw = localStorage.getItem('operation-mango-progress');
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw as string);
+
+    expect(parsed.state).not.toHaveProperty('campaign');
+    expect(parsed.state.campaignId).toBe('infiltrator');
+  });
+
+  it('surviving a simulated reload (resetProgress + hydrateCampaign with live RegExp instances) does not throw when a command is run', () => {
+    useSimStore.getState().startCampaign(infiltratorCampaign);
+    expect(useSimStore.getState().campaignId).toBe('infiltrator');
+
+    // Simulate what happens on a real page reload: the in-memory `campaign`
+    // object is gone (only campaignId + progress survived JSON persistence),
+    // and the page re-attaches a fresh campaign object from the content
+    // registry (with real, working RegExp instances) via hydrateCampaign.
+    useSimStore.setState({ campaign: null });
+    expect(useSimStore.getState().campaign).toBeNull();
+
+    useSimStore.getState().hydrateCampaign(infiltratorCampaign);
+    expect(useSimStore.getState().campaign).toBe(infiltratorCampaign);
+
+    // The stage-1 recon command should still match via a real RegExp .test(),
+    // not throw "command.match.test is not a function".
+    expect(() => useSimStore.getState().runCommand('kubectl get pods')).not.toThrow();
+
+    const state = useSimStore.getState();
+    expect(state.terminalHistory.at(-1)?.output).not.toEqual([
+      'Command not recognized in this context.',
+    ]);
+    expect(state.revealedFacts).toContain('found-implant-pod');
   });
 });

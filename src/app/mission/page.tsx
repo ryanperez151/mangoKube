@@ -3,13 +3,16 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSimStore, useHasHydrated } from '@/engine/store';
+import { chapter1Campaigns } from '@/content/chapter1';
 import { Terminal } from '@/components/Terminal/Terminal';
 import { ClusterDiagram } from '@/components/ClusterDiagram/ClusterDiagram';
 import { BriefingOverlay } from '@/components/BriefingOverlay/BriefingOverlay';
 
 export default function MissionPage() {
   const router = useRouter();
+  const campaignId = useSimStore((state) => state.campaignId);
   const campaign = useSimStore((state) => state.campaign);
+  const hydrateCampaign = useSimStore((state) => state.hydrateCampaign);
   const stageIndex = useSimStore((state) => state.stageIndex);
   const revealedFacts = useSimStore((state) => state.revealedFacts);
   const terminalHistory = useSimStore((state) => state.terminalHistory);
@@ -22,10 +25,16 @@ export default function MissionPage() {
   const hasHydrated = useHasHydrated();
 
   useEffect(() => {
-    if (hasHydrated && !campaign) {
+    if (hasHydrated && !campaignId) {
       router.replace('/campaign-select');
     }
-  }, [hasHydrated, campaign, router]);
+  }, [hasHydrated, campaignId, router]);
+
+  useEffect(() => {
+    if (hasHydrated && campaignId && !campaign) {
+      hydrateCampaign(chapter1Campaigns[campaignId]);
+    }
+  }, [hasHydrated, campaignId, campaign, hydrateCampaign]);
 
   useEffect(() => {
     setShowBriefing(true);
@@ -37,7 +46,7 @@ export default function MissionPage() {
     }
   }, [campaign, stageIndex, router]);
 
-  if (!hasHydrated || !campaign || stageIndex >= campaign.stages.length) {
+  if (!hasHydrated || !campaignId || !campaign || stageIndex >= campaign.stages.length) {
     return null;
   }
 
