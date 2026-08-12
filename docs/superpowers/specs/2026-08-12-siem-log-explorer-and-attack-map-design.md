@@ -58,9 +58,20 @@ skill being taught.
 
 Most of the corpus is benign: real pipeline runs, healthy pod churn, routine API
 traffic, normal image pulls. A test asserts signal events stay under ~5% of the
-events visible at any stage, so finding them remains an actual hunt. Noise is
-generated deterministically from a fixed seed so tests and playthroughs are
-stable.
+events visible at any stage. Noise is generated deterministically from a fixed
+seed so tests and playthroughs are stable.
+
+**Correction, recorded after implementation:** the ratio bound is necessary but
+not sufficient, and this spec originally overclaimed it. A ratio bounds the
+*volume* of signal, not its *distinguishability*. As shipped, no noise event
+carries `severity: high`, and none carries `sourceIP`, `object`, `binding`,
+`role`, or `detection` at all — so those fields act as perfect oracles: a single
+`severity=high` returns only signal. Chapter 1 survives this because its guided
+track never invites those queries, but the real criterion is **field overlap
+between signal and noise**, and a future corpus should be tested for that rather
+than for count alone. Treat widening the noise templates (varied pods,
+namespaces, users, and benign `severity`/`sourceIP` values) as a prerequisite for
+Chapter 2, not a Chapter 1 defect.
 
 ### Live incident, live index
 
@@ -255,3 +266,20 @@ the mission workspace.
 **Out of scope:** changes to the Infiltrator campaign beyond what the engine
 refactor requires; query aggregation (`| stats`); Chapters 2+; any backend,
 save-sync, or scoring.
+
+## Deviations From This Spec, As Shipped
+
+Recorded so this document is not later read as a list of missing features:
+
+- **`queryHistory` was not implemented.** It is named in the architecture table
+  above, but nothing needed it. The store persists `activeQuery` only.
+- **Time ranges shipped as presets only**, without the custom range this spec
+  mentions. The four presets carry the Stage 2 lesson on their own.
+- **`PinButton` was folded into `EventDetail`** rather than shipping as its own
+  component; pinning is the detail panel's only action.
+- **The motion beats shipped as a slide-in and a scale pulse**, rather than the
+  literal "flies from the log row into the case file" and "ignites with a glow"
+  described above. Both are gated on `prefers-reduced-motion`.
+- **`deriveNodeState` lives in `src/engine/attackMap.ts`**, not in the chapter's
+  content module, so a component never reaches into one chapter's data for
+  shared logic.
