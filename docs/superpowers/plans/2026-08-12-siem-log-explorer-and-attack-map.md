@@ -1820,7 +1820,11 @@ const initialTransientState = {
   timeRangeId: 'last-1h',
 };
 
-/** The cluster-visual patch applied on entering a stage. */
+/**
+ * The cluster-visual patch applied at campaign start, where resolving
+ * absent id arrays to `[]` is correct because nothing has accumulated yet.
+ * Stage advance does NOT use this — see the three-level fallback below.
+ */
 function enterStagePatch(delta: ClusterDelta | undefined, fallback: ClusterStatus) {
   return {
     clusterStatus: delta?.status ?? fallback,
@@ -1862,7 +1866,21 @@ export const useSimStore = create<SimState>()(
             collectedFacts,
             revealedFacts: [],
             stageIndex: stageIndex + 1,
-            ...enterStagePatch(nextStage?.clusterInitial ?? delta, state.clusterStatus),
+            // Three-level fallback, preserved from the pre-refactor store:
+            // next stage's own value, else the command's delta, else what
+            // has accumulated. Resolving to [] here would wipe the diagram
+            // whenever a stage declares a status but no ids — which the
+            // Infiltrator `exploit -> escalation` transition does.
+            clusterStatus:
+              nextStage?.clusterInitial.status ?? delta?.status ?? state.clusterStatus,
+            highlightedNodeIds:
+              nextStage?.clusterInitial.highlightNodeIds ??
+              delta?.highlightNodeIds ??
+              state.highlightedNodeIds,
+            revealedEdgeIds:
+              nextStage?.clusterInitial.revealEdgeIds ??
+              delta?.revealEdgeIds ??
+              state.revealedEdgeIds,
           });
           return;
         }
