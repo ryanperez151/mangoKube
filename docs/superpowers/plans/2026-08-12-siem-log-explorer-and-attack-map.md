@@ -3608,7 +3608,10 @@ export function AttackMap({ nodes, facts }: AttackMapProps) {
 
   return (
     <section aria-label="attack path map" className="flex h-full flex-col gap-3">
-      <svg viewBox="0 0 100 100" className="w-full" role="presentation">
+      {/* No role on the svg: `role="presentation"` alongside interactive
+          descendants is inconsistently supported, and the element is not
+          focusable anyway. */}
+      <svg viewBox="0 0 100 100" className="w-full">
         {nodes.map((node) => {
           if (!node.parentId) return null;
           const parent = nodeById.get(node.parentId);
@@ -3642,7 +3645,7 @@ export function AttackMap({ nodes, facts }: AttackMapProps) {
               key={node.id}
               data-testid={`map-node-${node.id}`}
               data-state={state}
-              role="button"
+              role={isDiscovered ? 'button' : undefined}
               tabIndex={isDiscovered ? 0 : -1}
               aria-label={`${isDiscovered ? node.label : 'Undiscovered step'} — ${state}`}
               className={isDiscovered ? 'cursor-pointer' : 'cursor-default'}
@@ -3690,7 +3693,11 @@ export function AttackMap({ nodes, facts }: AttackMapProps) {
         })}
       </svg>
 
-      {selected && selectedState && (
+      {/* `deriveNodeState` is a pure function of the live facts, with no
+          monotonicity guarantee — if facts shrink while a panel is open,
+          the panel must close rather than keep showing a node the player
+          has no longer proven. */}
+      {selected && selectedState && selectedState !== 'undiscovered' && (
         <div
           data-testid="map-detail"
           className="space-y-2 rounded border border-mango-500/30 bg-orchard-900/70 p-3 text-xs leading-relaxed"
