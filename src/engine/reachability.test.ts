@@ -155,4 +155,60 @@ describe('findAdvancePath', () => {
     ];
     expect(findAdvancePath(stage, { events, stageIndex: 0 })).toEqual(['pin ev1', 'respond']);
   });
+
+  it('prefers a shorter evidence path over a longer command path', () => {
+    const stage: Stage = {
+      id: 's',
+      title: 't',
+      briefing: [],
+      objective: 'o',
+      clusterInitial: {},
+      commands: [
+        { match: /a/, description: 'cmdA', outcome: { output: [], revealsFacts: ['fA'] } },
+        {
+          match: /w/,
+          description: 'cmdWin',
+          requiresFacts: ['fA'],
+          outcome: { output: [], advances: true },
+        },
+      ],
+      advanceWhen: { facts: ['fB'] },
+    };
+    const events: LogEvent[] = [
+      {
+        id: 'evB',
+        timestamp: '2026-08-12T02:00:00Z',
+        source: 'edr',
+        message: 'm',
+        fields: {},
+        arrivesAtStage: 0,
+        revealsFact: 'fB',
+      },
+    ];
+    expect(findAdvancePath(stage, { events, stageIndex: 0 })).toEqual(['pin evB']);
+  });
+
+  it('never treats an empty advanceWhen fact list as satisfied', () => {
+    const stage: Stage = {
+      id: 's',
+      title: 't',
+      briefing: [],
+      objective: 'o',
+      clusterInitial: {},
+      commands: [],
+      advanceWhen: { facts: [] },
+    };
+    const events: LogEvent[] = [
+      {
+        id: 'ev1',
+        timestamp: '2026-08-12T02:00:00Z',
+        source: 'edr',
+        message: 'm',
+        fields: {},
+        arrivesAtStage: 0,
+        revealsFact: 'f1',
+      },
+    ];
+    expect(findAdvancePath(stage, { events, stageIndex: 0 })).toBeNull();
+  });
 });
