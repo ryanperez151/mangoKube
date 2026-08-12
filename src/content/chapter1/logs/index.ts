@@ -11,7 +11,11 @@ export { TIME_RANGES, DEFAULT_TIME_RANGE_ID, INCIDENT_NOW_ISO } from './timeRang
  */
 const noiseEvents: LogEvent[] = [
   ...generateNoiseEvents({
-    count: 160,
+    // Sized against the 5% signal ceiling in corpus.test.ts, not chosen
+    // arbitrarily: 8 of the 9 signal events fall in the default one-hour
+    // window, so 200 puts that window at 3.85% with room for two more
+    // signal events. Lowering this silently breaks the ratio test.
+    count: 200,
     startIso: '2026-08-12T02:00:00Z',
     endIso: '2026-08-12T03:00:00Z',
     seed: 1337,
