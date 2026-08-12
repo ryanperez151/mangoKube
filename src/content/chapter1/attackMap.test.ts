@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { sentinelAttackMap, deriveNodeState } from './attackMap';
+import { sentinelCampaign } from './sentinel';
 
 describe('deriveNodeState', () => {
   const node = {
@@ -61,6 +62,22 @@ describe('sentinelAttackMap', () => {
     for (const node of sentinelAttackMap) {
       expect(node.lesson, `${node.id} has no lesson`).toBeTruthy();
       expect(node.prevention, `${node.id} has no prevention`).toBeTruthy();
+    }
+  });
+
+  it('references only facts that exist in the campaign fact library', () => {
+    for (const node of sentinelAttackMap) {
+      const referenced = [
+        ...node.suspectedByFacts,
+        ...node.confirmedByFacts,
+        ...node.containedByFacts,
+      ];
+      for (const factId of referenced) {
+        expect(
+          sentinelCampaign.factLibrary[factId],
+          `node "${node.id}" references unknown fact "${factId}"`
+        ).toBeDefined();
+      }
     }
   });
 });

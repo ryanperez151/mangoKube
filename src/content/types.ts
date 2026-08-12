@@ -49,6 +49,8 @@ export interface QuerySuggestion {
 export interface CampaignDebrief {
   narrative: string[];
   lesson: string;
+  /** Plain-language detection guidance, shown only when present. */
+  detection?: string[];
   nextChapterTeaser: string;
 }
 
