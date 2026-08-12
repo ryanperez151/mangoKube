@@ -54,3 +54,51 @@ export interface TerminalEntry {
   input: string;
   output: string[];
 }
+
+export type LogSource = 'k8s-audit' | 'edr' | 'apiserver' | 'ci-cd';
+
+export interface LogEvent {
+  id: string;
+  /** ISO 8601, e.g. '2026-08-12T02:14:03Z' */
+  timestamp: string;
+  source: LogSource;
+  message: string;
+  fields: Record<string, string>;
+  /** Index of the earliest stage at which this event is in the searchable index. */
+  arrivesAtStage: number;
+  /** Pinning this event reveals this fact. Absent on benign events. */
+  revealsFact?: string;
+  /** Shown when the event is pinned: why it matters, or why it is routine. */
+  analystNote?: string;
+}
+
+export interface TimeRange {
+  id: string;
+  label: string;
+  /** ISO 8601, inclusive. */
+  startIso: string;
+  /** ISO 8601, exclusive. */
+  endIso: string;
+}
+
+export interface QueryPredicate {
+  field: string;
+  value: string;
+  negated: boolean;
+}
+
+export interface QueryAst {
+  predicates: QueryPredicate[];
+  /** Unqualified tokens, matched as substrings against every field value. */
+  terms: string[];
+}
+
+export type QueryParseResult =
+  | { ok: true; ast: QueryAst }
+  | { ok: false; error: string };
+
+export interface QueryResult {
+  events: LogEvent[];
+  /** Predicate fields no visible event carries — surfaced as a UI warning. */
+  unknownFields: string[];
+}
