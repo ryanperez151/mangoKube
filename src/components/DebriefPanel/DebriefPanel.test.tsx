@@ -23,4 +23,26 @@ describe('DebriefPanel', () => {
     fireEvent.click(screen.getByText('Return to Briefing'));
     expect(onRestart).toHaveBeenCalled();
   });
+
+  it('shows detection guidance when supplied', () => {
+    render(
+      <DebriefPanel
+        narrative={['n']}
+        lesson="l"
+        detection={['Alert on create pods/exec.']}
+        nextChapterTeaser="t"
+        onRestart={() => {}}
+      />
+    );
+    expect(screen.getByTestId('debrief-detection')).toHaveTextContent(
+      'Alert on create pods/exec.'
+    );
+  });
+
+  it('omits the detection section when none is supplied', () => {
+    render(
+      <DebriefPanel narrative={['n']} lesson="l" nextChapterTeaser="t" onRestart={() => {}} />
+    );
+    expect(screen.queryByTestId('debrief-detection')).toBeNull();
+  });
 });

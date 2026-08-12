@@ -253,7 +253,7 @@ describe('executeQuery', () => {
 
   it('restricts results to the supplied time range', () => {
     const ast = { predicates: [], terms: [] };
-    expect(executeQuery(ast, events, lastHour).events.map((e) => e.id)).toEqual(['e1', 'e2']);
+    expect(executeQuery(ast, events, lastHour).events.map((e) => e.id)).toEqual(['e2', 'e1']);
   });
 
   it('reports predicate fields that no event carries', () => {
@@ -1051,7 +1051,11 @@ export { TIME_RANGES, DEFAULT_TIME_RANGE_ID, INCIDENT_NOW_ISO } from './timeRang
  */
 const noiseEvents: LogEvent[] = [
   ...generateNoiseEvents({
-    count: 140,
+    // Sized against the 5% signal ceiling in corpus.test.ts, not chosen
+    // arbitrarily: 8 of the 9 signal events fall in the default one-hour
+    // window, so 200 puts that window at 3.85% with room for two more
+    // signal events. Lowering this silently breaks the ratio test.
+    count: 200,
     startIso: '2026-08-12T02:00:00Z',
     endIso: '2026-08-12T03:00:00Z',
     seed: 1337,
@@ -1553,39 +1557,51 @@ export function findAdvancePath(stage: Stage, options: ReachabilityOptions = {})
   );
 
   const seen = new Set<string>(['']);
-  const queue: SearchNode[] = [{ facts: new Set(), path: [] }];
+  let frontier: SearchNode[] = [{ facts: new Set(), path: [] }];
 
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-
-    if (advanceWhenSatisfied(stage, current.facts)) return current.path;
-
-    for (const command of stage.commands) {
-      const requires = command.requiresFacts ?? [];
-      if (!requires.every((factId) => current.facts.has(factId))) continue;
-
-      const path = [...current.path, command.description];
-      if (command.outcome.advances) return path;
-
-      const nextFacts = new Set(current.facts);
-      (command.outcome.revealsFacts ?? []).forEach((factId) => nextFacts.add(factId));
-      const key = [...nextFacts].sort().join(',');
-      if (seen.has(key)) continue;
-      seen.add(key);
-      queue.push({ facts: nextFacts, path });
+  while (frontier.length > 0) {
+    // Advance one full BFS layer at a time. A stage may complete either by
+    // satisfying `advanceWhen` (a win at this depth) or by running an
+    // `advances` command (a win one step deeper), so every same-depth goal
+    // must be checked before descending — otherwise the first expansion
+    // that finds an `advances` command returns a longer path than a peer
+    // node in the same layer would have.
+    for (const node of frontier) {
+      if (advanceWhenSatisfied(stage, node.facts)) return node.path;
     }
 
-    for (const event of pinnable) {
-      const factId = event.revealsFact!;
-      if (current.facts.has(factId)) continue;
+    const next: SearchNode[] = [];
 
-      const nextFacts = new Set(current.facts);
-      nextFacts.add(factId);
-      const key = [...nextFacts].sort().join(',');
-      if (seen.has(key)) continue;
-      seen.add(key);
-      queue.push({ facts: nextFacts, path: [...current.path, `pin ${event.id}`] });
+    for (const node of frontier) {
+      for (const command of stage.commands) {
+        const requires = command.requiresFacts ?? [];
+        if (!requires.every((factId) => node.facts.has(factId))) continue;
+
+        const path = [...node.path, command.description];
+        if (command.outcome.advances) return path;
+
+        const nextFacts = new Set(node.facts);
+        (command.outcome.revealsFacts ?? []).forEach((factId) => nextFacts.add(factId));
+        const key = [...nextFacts].sort().join(',');
+        if (seen.has(key)) continue;
+        seen.add(key);
+        next.push({ facts: nextFacts, path });
+      }
+
+      for (const event of pinnable) {
+        const factId = event.revealsFact!;
+        if (node.facts.has(factId)) continue;
+
+        const nextFacts = new Set(node.facts);
+        nextFacts.add(factId);
+        const key = [...nextFacts].sort().join(',');
+        if (seen.has(key)) continue;
+        seen.add(key);
+        next.push({ facts: nextFacts, path: [...node.path, `pin ${event.id}`] });
+      }
     }
+
+    frontier = next;
   }
 
   return null;
@@ -1804,7 +1820,11 @@ const initialTransientState = {
   timeRangeId: 'last-1h',
 };
 
-/** The cluster-visual patch applied on entering a stage. */
+/**
+ * The cluster-visual patch applied at campaign start, where resolving
+ * absent id arrays to `[]` is correct because nothing has accumulated yet.
+ * Stage advance does NOT use this — see the three-level fallback below.
+ */
 function enterStagePatch(delta: ClusterDelta | undefined, fallback: ClusterStatus) {
   return {
     clusterStatus: delta?.status ?? fallback,
@@ -1846,7 +1866,21 @@ export const useSimStore = create<SimState>()(
             collectedFacts,
             revealedFacts: [],
             stageIndex: stageIndex + 1,
-            ...enterStagePatch(nextStage?.clusterInitial ?? delta, state.clusterStatus),
+            // Three-level fallback, preserved from the pre-refactor store:
+            // next stage's own value, else the command's delta, else what
+            // has accumulated. Resolving to [] here would wipe the diagram
+            // whenever a stage declares a status but no ids — which the
+            // Infiltrator `exploit -> escalation` transition does.
+            clusterStatus:
+              nextStage?.clusterInitial.status ?? delta?.status ?? state.clusterStatus,
+            highlightedNodeIds:
+              nextStage?.clusterInitial.highlightNodeIds ??
+              delta?.highlightNodeIds ??
+              state.highlightedNodeIds,
+            revealedEdgeIds:
+              nextStage?.clusterInitial.revealEdgeIds ??
+              delta?.revealEdgeIds ??
+              state.revealedEdgeIds,
           });
           return;
         }
@@ -3313,12 +3347,11 @@ export function LogExplorer({
     return executeQuery(parsed.ast, events, range);
   }, [parsed, events, range]);
 
-  // A submitted search that returns nothing twice running means the
-  // player is stuck rather than exploring, so offer the stage hint.
+  // A parent may change `query` on its own — restoring a persisted query,
+  // or resetting between stages. The visible input must follow it.
   useEffect(() => {
-    if (!parsed.ok) return;
-    setEmptyStreak((streak) => (result.events.length === 0 ? streak + 1 : 0));
-  }, [parsed, result]);
+    setDraft(query);
+  }, [query]);
 
   const selected = result.events.find((event) => event.id === selectedId) ?? null;
 
@@ -3326,6 +3359,17 @@ export function LogExplorer({
     setDraft(next);
     setSelectedId(null);
     onQueryChange(next);
+
+    // The streak counts submissions, so it is updated here rather than in
+    // an effect. An effect keyed on memoized results would miscount three
+    // ways: it fires once at mount before the player has searched, it does
+    // not fire at all when the same failing query is resubmitted (the memo
+    // inputs are unchanged), and it re-fires on unrelated re-renders when a
+    // parent passes a freshly-built `events` array.
+    const submitted = parseQuery(next);
+    if (!submitted.ok) return;
+    const outcome = executeQuery(submitted.ast, events, range);
+    setEmptyStreak((streak) => (outcome.events.length === 0 ? streak + 1 : 0));
   }
 
   return (
@@ -3564,7 +3608,10 @@ export function AttackMap({ nodes, facts }: AttackMapProps) {
 
   return (
     <section aria-label="attack path map" className="flex h-full flex-col gap-3">
-      <svg viewBox="0 0 100 100" className="w-full" role="presentation">
+      {/* No role on the svg: `role="presentation"` alongside interactive
+          descendants is inconsistently supported, and the element is not
+          focusable anyway. */}
+      <svg viewBox="0 0 100 100" className="w-full">
         {nodes.map((node) => {
           if (!node.parentId) return null;
           const parent = nodeById.get(node.parentId);
@@ -3598,7 +3645,7 @@ export function AttackMap({ nodes, facts }: AttackMapProps) {
               key={node.id}
               data-testid={`map-node-${node.id}`}
               data-state={state}
-              role="button"
+              role={isDiscovered ? 'button' : undefined}
               tabIndex={isDiscovered ? 0 : -1}
               aria-label={`${isDiscovered ? node.label : 'Undiscovered step'} — ${state}`}
               className={isDiscovered ? 'cursor-pointer' : 'cursor-default'}
@@ -3646,7 +3693,11 @@ export function AttackMap({ nodes, facts }: AttackMapProps) {
         })}
       </svg>
 
-      {selected && selectedState && (
+      {/* `deriveNodeState` is a pure function of the live facts, with no
+          monotonicity guarantee — if facts shrink while a panel is open,
+          the panel must close rather than keep showing a node the player
+          has no longer proven. */}
+      {selected && selectedState && selectedState !== 'undiscovered' && (
         <div
           data-testid="map-detail"
           className="space-y-2 rounded border border-mango-500/30 bg-orchard-900/70 p-3 text-xs leading-relaxed"

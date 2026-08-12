@@ -3,13 +3,14 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Operation Mango',
-  description: 'A cinematic Kubernetes attack/defense simulation.',
+  description:
+    'A cinematic, fully-simulated Kubernetes attack and defense investigation set in the MangoCorp orchard.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className="min-h-screen">{children}</body>
     </html>
   );
 }
