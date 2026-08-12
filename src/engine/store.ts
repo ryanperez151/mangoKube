@@ -42,7 +42,13 @@ const initialTransientState = {
   timeRangeId: 'last-1h',
 };
 
-/** The cluster-visual patch applied on entering a stage. */
+/**
+ * The cluster-visual patch applied when a campaign starts on its first
+ * stage. A fresh campaign has nothing accumulated yet, so absent id arrays
+ * correctly resolve to `[]` here — this is NOT used for stage-to-stage
+ * advance, where prior highlights/edges must persist (see the advance
+ * branch of `applyReveal`).
+ */
 function enterStagePatch(delta: ClusterDelta | undefined, fallback: ClusterStatus) {
   return {
     clusterStatus: delta?.status ?? fallback,
@@ -84,7 +90,16 @@ export const useSimStore = create<SimState>()(
             collectedFacts,
             revealedFacts: [],
             stageIndex: stageIndex + 1,
-            ...enterStagePatch(nextStage?.clusterInitial ?? delta, state.clusterStatus),
+            clusterStatus:
+              nextStage?.clusterInitial.status ?? delta?.status ?? state.clusterStatus,
+            highlightedNodeIds:
+              nextStage?.clusterInitial.highlightNodeIds ??
+              delta?.highlightNodeIds ??
+              state.highlightedNodeIds,
+            revealedEdgeIds:
+              nextStage?.clusterInitial.revealEdgeIds ??
+              delta?.revealEdgeIds ??
+              state.revealedEdgeIds,
           });
           return;
         }

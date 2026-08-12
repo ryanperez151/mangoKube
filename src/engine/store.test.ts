@@ -258,3 +258,44 @@ describe('query state', () => {
     expect(state.pinnedEvidence).toEqual([]);
   });
 });
+
+describe('cluster visuals across stage advance', () => {
+  it('carries highlights forward when the next stage sets none of its own', () => {
+    const campaign: Campaign = {
+      ...testCampaign,
+      stages: [
+        {
+          id: 'a',
+          title: 'A',
+          briefing: [],
+          objective: 'o',
+          clusterInitial: { status: 'nominal', highlightNodeIds: ['n1'], revealEdgeIds: ['e1'] },
+          commands: [
+            {
+              match: /^go$/,
+              description: 'go',
+              outcome: { output: [], advances: true, clusterDelta: { status: 'compromised' } },
+            },
+          ],
+        },
+        {
+          id: 'b',
+          title: 'B',
+          briefing: [],
+          objective: 'o',
+          clusterInitial: { status: 'compromised' },
+          commands: [],
+        },
+      ],
+    };
+
+    useSimStore.getState().startCampaign(campaign);
+    useSimStore.getState().runCommand('go');
+
+    const state = useSimStore.getState();
+    expect(state.stageIndex).toBe(1);
+    expect(state.clusterStatus).toBe('compromised');
+    expect(state.highlightedNodeIds).toEqual(['n1']);
+    expect(state.revealedEdgeIds).toEqual(['e1']);
+  });
+});
