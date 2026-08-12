@@ -102,3 +102,24 @@ export interface QueryResult {
   /** Predicate fields no visible event carries — surfaced as a UI warning. */
   unknownFields: string[];
 }
+
+export type AttackMapNodeState = 'undiscovered' | 'suspected' | 'confirmed' | 'contained';
+
+export interface AttackMapNode {
+  id: string;
+  label: string;
+  /** Plain-language tactic name, e.g. 'Privilege Escalation'. */
+  tactic: string;
+  summary: string;
+  lesson: string;
+  prevention: string;
+  /** Every listed fact must be collected for the state to apply. Empty = never. */
+  suspectedByFacts: string[];
+  confirmedByFacts: string[];
+  containedByFacts: string[];
+  /** Layout position along the branch, in the map's 0-100 coordinate space. */
+  x: number;
+  y: number;
+  /** Branch parent; absent on the trunk node. */
+  parentId?: string;
+}
