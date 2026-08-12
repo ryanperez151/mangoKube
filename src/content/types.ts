@@ -33,6 +33,17 @@ export interface Stage {
   objective: string;
   commands: CommandDefinition[];
   clusterInitial: ClusterDelta;
+  /** Stage completes once every listed fact is collected. */
+  advanceWhen?: { facts: string[] };
+  /** Clickable chips that insert real query syntax into the search bar. */
+  suggestedQueries?: QuerySuggestion[];
+  /** Offered after repeated empty result sets. */
+  hint?: string;
+}
+
+export interface QuerySuggestion {
+  label: string;
+  query: string;
 }
 
 export interface CampaignDebrief {
@@ -48,6 +59,10 @@ export interface Campaign {
   stages: Stage[];
   factLibrary: Record<string, Fact>;
   debrief: CampaignDebrief;
+  /** Present only on campaigns that use the log explorer. */
+  logCorpus?: LogEvent[];
+  attackMap?: AttackMapNode[];
+  timeRanges?: TimeRange[];
 }
 
 export interface TerminalEntry {
