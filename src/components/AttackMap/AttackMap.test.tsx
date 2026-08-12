@@ -109,4 +109,20 @@ describe('AttackMap', () => {
     render(<AttackMap nodes={nodes} facts={[]} />);
     expect(screen.getByTestId('map-node-exec')).toHaveAttribute('data-ignited', 'false');
   });
+
+  it('anchors an edge label inward so it stays inside the viewBox', () => {
+    render(<AttackMap nodes={nodes} facts={['f1']} />);
+
+    const edgeLabel = screen.getByText('Poisoned build image');
+    expect(edgeLabel).toHaveAttribute('text-anchor', 'start');
+    expect(edgeLabel).toHaveAttribute('x', '2');
+  });
+
+  it('leaves an interior label centred on its node', () => {
+    render(<AttackMap nodes={nodes} facts={['f1']} />);
+
+    const interiorLabel = screen.getByText('Interactive shell');
+    expect(interiorLabel).toHaveAttribute('text-anchor', 'middle');
+    expect(interiorLabel).toHaveAttribute('x', '40');
+  });
 });

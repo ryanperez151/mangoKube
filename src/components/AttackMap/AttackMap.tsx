@@ -66,6 +66,14 @@ export function AttackMap({ nodes, facts }: AttackMapProps) {
           const style = STATE_STYLE[state];
           const isDiscovered = state !== 'undiscovered';
 
+          // Labels are wider than the nodes they sit under, so near the
+          // edges of the 0-100 viewBox a centred label would be clipped.
+          // Anchor edge labels inward instead of moving the nodes, whose
+          // coordinates are tuned for the branch layout.
+          const labelAnchor =
+            node.x < 25 ? 'start' : node.x > 75 ? 'end' : 'middle';
+          const labelX = node.x < 25 ? 2 : node.x > 75 ? 98 : node.x;
+
           return (
             <g
               key={node.id}
@@ -117,11 +125,11 @@ export function AttackMap({ nodes, facts }: AttackMapProps) {
               </text>
               {isDiscovered && (
                 <text
-                  x={node.x}
+                  x={labelX}
                   y={node.y + style.radius + 4}
                   fontSize={2.8}
                   fill="#ffd27a"
-                  textAnchor="middle"
+                  textAnchor={labelAnchor}
                 >
                   {node.label}
                 </text>
