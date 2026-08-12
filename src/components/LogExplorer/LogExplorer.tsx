@@ -42,43 +42,41 @@ export function LogExplorer({
   onUnpin,
 }: LogExplorerProps) {
   const [draft, setDraft] = useState(query);
-  // The results are derived from this, not directly from the `query` prop.
-  // It is initialized from the prop and re-synced whenever the prop changes
-  // externally (e.g. the parent resetting search on stage advance), but a
-  // submission also updates it immediately, so filtering (and the empty-
-  // streak count below) reacts to "last submitted query" without waiting
-  // for a parent round-trip through props.
-  const [submittedQuery, setSubmittedQuery] = useState(query);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [emptyStreak, setEmptyStreak] = useState(0);
 
+  // A parent may change `query` on its own — restoring a persisted query,
+  // or resetting between stages. The visible input must follow it.
   useEffect(() => {
-    setSubmittedQuery(query);
+    setDraft(query);
   }, [query]);
 
   const range = ranges.find((candidate) => candidate.id === timeRangeId) ?? ranges[0];
 
-  const parsed = useMemo(() => parseQuery(submittedQuery), [submittedQuery]);
+  const parsed = useMemo(() => parseQuery(query), [query]);
 
   const result = useMemo(() => {
     if (!parsed.ok) return { events: [], unknownFields: [] };
     return executeQuery(parsed.ast, events, range);
   }, [parsed, events, range]);
 
-  // A submitted search that returns nothing twice running means the
-  // player is stuck rather than exploring, so offer the stage hint.
-  useEffect(() => {
-    if (!parsed.ok) return;
-    setEmptyStreak((streak) => (result.events.length === 0 ? streak + 1 : 0));
-  }, [parsed, result]);
-
   const selected = result.events.find((event) => event.id === selectedId) ?? null;
 
   function runQuery(next: string) {
     setDraft(next);
     setSelectedId(null);
-    setSubmittedQuery(next);
     onQueryChange(next);
+
+    // The streak counts submissions, so it is updated here rather than in
+    // an effect. An effect keyed on memoized results would miscount three
+    // ways: it fires once at mount before the player has searched, it does
+    // not fire at all when the same failing query is resubmitted (the memo
+    // inputs are unchanged), and it re-fires on unrelated re-renders when a
+    // parent passes a freshly-built `events` array.
+    const submitted = parseQuery(next);
+    if (!submitted.ok) return;
+    const outcome = executeQuery(submitted.ast, events, range);
+    setEmptyStreak((streak) => (outcome.events.length === 0 ? streak + 1 : 0));
   }
 
   return (

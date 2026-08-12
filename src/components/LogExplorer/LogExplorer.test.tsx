@@ -107,4 +107,27 @@ describe('LogExplorer', () => {
     fireEvent.submit(screen.getByRole('search'));
     expect(screen.getByTestId('hint')).toHaveTextContent('Try narrowing by severity.');
   });
+
+  it('counts a resubmission of the same failing query toward the hint', () => {
+    renderExplorer();
+    const input = screen.getByLabelText('search query');
+
+    fireEvent.change(input, { target: { value: 'severity=nonexistent' } });
+    fireEvent.submit(screen.getByRole('search'));
+    expect(screen.queryByTestId('hint')).toBeNull();
+
+    // Same text again, without editing — a stuck player hitting Enter twice.
+    fireEvent.submit(screen.getByRole('search'));
+    expect(screen.getByTestId('hint')).toBeInTheDocument();
+  });
+
+  it('does not count mounting with an unmatched query as a search', () => {
+    renderExplorer({ query: 'severity=nonexistent' });
+    const input = screen.getByLabelText('search query');
+
+    // One deliberate empty search after mount must not be enough.
+    fireEvent.change(input, { target: { value: 'severity=alsonothing' } });
+    fireEvent.submit(screen.getByRole('search'));
+    expect(screen.queryByTestId('hint')).toBeNull();
+  });
 });
