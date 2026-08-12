@@ -43,6 +43,7 @@ export default function DebriefPage() {
     <DebriefPanel
       narrative={campaign.debrief.narrative}
       lesson={campaign.debrief.lesson}
+      detection={campaign.debrief.detection}
       nextChapterTeaser={campaign.debrief.nextChapterTeaser}
       onRestart={handleRestart}
     />

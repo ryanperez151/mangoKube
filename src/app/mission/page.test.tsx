@@ -13,7 +13,7 @@ beforeEach(() => {
   localStorage.clear();
 });
 
-describe('MissionPage', () => {
+describe('MissionPage — Infiltrator', () => {
   it('shows the stage briefing first, then the terminal after dismissal', () => {
     useSimStore.getState().startCampaign(chapter1Campaigns.infiltrator);
     render(<MissionPage />);
@@ -24,7 +24,7 @@ describe('MissionPage', () => {
     expect(screen.getByLabelText('terminal input')).toBeInTheDocument();
   });
 
-  it('advances the stage in the store when the player runs the full recon command sequence', () => {
+  it('advances the stage when the player runs the full recon command sequence', () => {
     useSimStore.getState().startCampaign(chapter1Campaigns.infiltrator);
     render(<MissionPage />);
     fireEvent.click(screen.getByText('Begin'));
@@ -40,5 +40,62 @@ describe('MissionPage', () => {
     fireEvent.submit(input.closest('form')!);
 
     expect(useSimStore.getState().stageIndex).toBe(1);
+  });
+
+  it('does not show a log explorer for a campaign with no corpus', () => {
+    useSimStore.getState().startCampaign(chapter1Campaigns.infiltrator);
+    render(<MissionPage />);
+    fireEvent.click(screen.getByText('Begin'));
+    expect(screen.queryByLabelText('log explorer')).toBeNull();
+  });
+});
+
+describe('MissionPage — Sentinel', () => {
+  beforeEach(() => {
+    useSimStore.getState().startCampaign(chapter1Campaigns.sentinel);
+  });
+
+  it('opens on the log explorer, attack map, and case file', () => {
+    render(<MissionPage />);
+    fireEvent.click(screen.getByText('Begin'));
+
+    expect(screen.getByLabelText('log explorer')).toBeInTheDocument();
+    expect(screen.getByLabelText('attack path map')).toBeInTheDocument();
+    expect(screen.getByLabelText('case file')).toBeInTheDocument();
+  });
+
+  it('withholds the terminal until a stage has response commands', () => {
+    render(<MissionPage />);
+    fireEvent.click(screen.getByText('Begin'));
+    expect(screen.queryByLabelText('terminal input')).toBeNull();
+  });
+
+  it('advances the triage stage when both signal events are pinned', () => {
+    render(<MissionPage />);
+    fireEvent.click(screen.getByText('Begin'));
+
+    useSimStore.getState().pinEvent('sig-shell-spawn');
+    useSimStore.getState().pinEvent('sig-exec-create');
+
+    expect(useSimStore.getState().stageIndex).toBe(1);
+  });
+
+  it('shows the terminal once the containment stage is reached', () => {
+    const store = useSimStore.getState();
+    store.pinEvent('sig-shell-spawn');
+    store.pinEvent('sig-exec-create');
+    useSimStore.getState().pinEvent('sig-sa-out-of-scope');
+    useSimStore.getState().pinEvent('sig-binding-in-effect');
+    useSimStore.getState().pinEvent('sig-binding-origin');
+    useSimStore.getState().pinEvent('sig-secret-read');
+    useSimStore.getState().pinEvent('sig-exfil-egress');
+    useSimStore.getState().pinEvent('sig-rogue-sa');
+    useSimStore.getState().pinEvent('sig-rogue-binding');
+
+    expect(useSimStore.getState().stageIndex).toBe(4);
+
+    render(<MissionPage />);
+    fireEvent.click(screen.getByText('Begin'));
+    expect(screen.getByLabelText('terminal input')).toBeInTheDocument();
   });
 });
