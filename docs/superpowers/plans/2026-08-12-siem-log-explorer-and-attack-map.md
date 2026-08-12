@@ -3347,12 +3347,11 @@ export function LogExplorer({
     return executeQuery(parsed.ast, events, range);
   }, [parsed, events, range]);
 
-  // A submitted search that returns nothing twice running means the
-  // player is stuck rather than exploring, so offer the stage hint.
+  // A parent may change `query` on its own — restoring a persisted query,
+  // or resetting between stages. The visible input must follow it.
   useEffect(() => {
-    if (!parsed.ok) return;
-    setEmptyStreak((streak) => (result.events.length === 0 ? streak + 1 : 0));
-  }, [parsed, result]);
+    setDraft(query);
+  }, [query]);
 
   const selected = result.events.find((event) => event.id === selectedId) ?? null;
 
@@ -3360,6 +3359,17 @@ export function LogExplorer({
     setDraft(next);
     setSelectedId(null);
     onQueryChange(next);
+
+    // The streak counts submissions, so it is updated here rather than in
+    // an effect. An effect keyed on memoized results would miscount three
+    // ways: it fires once at mount before the player has searched, it does
+    // not fire at all when the same failing query is resubmitted (the memo
+    // inputs are unchanged), and it re-fires on unrelated re-renders when a
+    // parent passes a freshly-built `events` array.
+    const submitted = parseQuery(next);
+    if (!submitted.ok) return;
+    const outcome = executeQuery(submitted.ast, events, range);
+    setEmptyStreak((streak) => (outcome.events.length === 0 ? streak + 1 : 0));
   }
 
   return (
