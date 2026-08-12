@@ -99,4 +99,14 @@ describe('AttackMap', () => {
     rerender(<AttackMap nodes={nodes} facts={[]} />);
     expect(screen.queryByTestId('map-detail')).toBeNull();
   });
+
+  it('marks a confirmed node as ignited for the motion layer', () => {
+    render(<AttackMap nodes={nodes} facts={['f1', 'f2']} />);
+    expect(screen.getByTestId('map-node-exec')).toHaveAttribute('data-ignited', 'true');
+  });
+
+  it('does not mark an undiscovered node as ignited', () => {
+    render(<AttackMap nodes={nodes} facts={[]} />);
+    expect(screen.getByTestId('map-node-exec')).toHaveAttribute('data-ignited', 'false');
+  });
 });

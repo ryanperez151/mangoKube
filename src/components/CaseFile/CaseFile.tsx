@@ -1,5 +1,6 @@
 'use client';
 
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import type { Fact, LogEvent } from '@/content/types';
 
 interface CaseFileProps {
@@ -10,6 +11,8 @@ interface CaseFileProps {
 }
 
 export function CaseFile({ objective, pinnedEvents, facts, onUnpin }: CaseFileProps) {
+  const reduceMotion = useReducedMotion();
+
   return (
     <section aria-label="case file" className="flex h-full flex-col gap-4 overflow-y-auto">
       <div>
@@ -44,29 +47,36 @@ export function CaseFile({ objective, pinnedEvents, facts, onUnpin }: CaseFilePr
           </p>
         ) : (
           <ul className="space-y-3">
-            {pinnedEvents.map((event) => (
-              <li
-                key={event.id}
-                className="rounded border border-mango-500/20 bg-orchard-900/60 p-3"
-              >
-                <p className="font-mono text-[10px] text-mango-300/50">
-                  {event.timestamp} · {event.source}
-                </p>
-                <p className="font-mono text-xs text-mango-100">{event.message}</p>
-                {event.analystNote && (
-                  <p className="mt-2 text-xs leading-relaxed text-mango-300/80">
-                    {event.analystNote}
-                  </p>
-                )}
-                <button
-                  type="button"
-                  onClick={() => onUnpin(event.id)}
-                  className="mt-2 text-[10px] uppercase tracking-wider text-mango-300/50 underline hover:text-mango-300"
+            <AnimatePresence initial={false}>
+              {pinnedEvents.map((event) => (
+                <motion.li
+                  key={event.id}
+                  layout={!reduceMotion}
+                  initial={reduceMotion ? false : { opacity: 0, x: 24 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: 24 }}
+                  transition={{ duration: reduceMotion ? 0 : 0.28, ease: 'easeOut' }}
+                  className="rounded border border-mango-500/20 bg-orchard-900/60 p-3"
                 >
-                  Remove
-                </button>
-              </li>
-            ))}
+                  <p className="font-mono text-[10px] text-mango-300/50">
+                    {event.timestamp} · {event.source}
+                  </p>
+                  <p className="font-mono text-xs text-mango-100">{event.message}</p>
+                  {event.analystNote && (
+                    <p className="mt-2 text-xs leading-relaxed text-mango-300/80">
+                      {event.analystNote}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onUnpin(event.id)}
+                    className="mt-2 text-[10px] uppercase tracking-wider text-mango-300/50 underline hover:text-mango-300"
+                  >
+                    Remove
+                  </button>
+                </motion.li>
+              ))}
+            </AnimatePresence>
           </ul>
         )}
       </div>
