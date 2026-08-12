@@ -253,7 +253,7 @@ describe('executeQuery', () => {
 
   it('restricts results to the supplied time range', () => {
     const ast = { predicates: [], terms: [] };
-    expect(executeQuery(ast, events, lastHour).events.map((e) => e.id)).toEqual(['e1', 'e2']);
+    expect(executeQuery(ast, events, lastHour).events.map((e) => e.id)).toEqual(['e2', 'e1']);
   });
 
   it('reports predicate fields that no event carries', () => {
@@ -1051,7 +1051,11 @@ export { TIME_RANGES, DEFAULT_TIME_RANGE_ID, INCIDENT_NOW_ISO } from './timeRang
  */
 const noiseEvents: LogEvent[] = [
   ...generateNoiseEvents({
-    count: 140,
+    // Sized against the 5% signal ceiling in corpus.test.ts, not chosen
+    // arbitrarily: 8 of the 9 signal events fall in the default one-hour
+    // window, so 200 puts that window at 3.85% with room for two more
+    // signal events. Lowering this silently breaks the ratio test.
+    count: 200,
     startIso: '2026-08-12T02:00:00Z',
     endIso: '2026-08-12T03:00:00Z',
     seed: 1337,
@@ -1553,39 +1557,51 @@ export function findAdvancePath(stage: Stage, options: ReachabilityOptions = {})
   );
 
   const seen = new Set<string>(['']);
-  const queue: SearchNode[] = [{ facts: new Set(), path: [] }];
+  let frontier: SearchNode[] = [{ facts: new Set(), path: [] }];
 
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-
-    if (advanceWhenSatisfied(stage, current.facts)) return current.path;
-
-    for (const command of stage.commands) {
-      const requires = command.requiresFacts ?? [];
-      if (!requires.every((factId) => current.facts.has(factId))) continue;
-
-      const path = [...current.path, command.description];
-      if (command.outcome.advances) return path;
-
-      const nextFacts = new Set(current.facts);
-      (command.outcome.revealsFacts ?? []).forEach((factId) => nextFacts.add(factId));
-      const key = [...nextFacts].sort().join(',');
-      if (seen.has(key)) continue;
-      seen.add(key);
-      queue.push({ facts: nextFacts, path });
+  while (frontier.length > 0) {
+    // Advance one full BFS layer at a time. A stage may complete either by
+    // satisfying `advanceWhen` (a win at this depth) or by running an
+    // `advances` command (a win one step deeper), so every same-depth goal
+    // must be checked before descending — otherwise the first expansion
+    // that finds an `advances` command returns a longer path than a peer
+    // node in the same layer would have.
+    for (const node of frontier) {
+      if (advanceWhenSatisfied(stage, node.facts)) return node.path;
     }
 
-    for (const event of pinnable) {
-      const factId = event.revealsFact!;
-      if (current.facts.has(factId)) continue;
+    const next: SearchNode[] = [];
 
-      const nextFacts = new Set(current.facts);
-      nextFacts.add(factId);
-      const key = [...nextFacts].sort().join(',');
-      if (seen.has(key)) continue;
-      seen.add(key);
-      queue.push({ facts: nextFacts, path: [...current.path, `pin ${event.id}`] });
+    for (const node of frontier) {
+      for (const command of stage.commands) {
+        const requires = command.requiresFacts ?? [];
+        if (!requires.every((factId) => node.facts.has(factId))) continue;
+
+        const path = [...node.path, command.description];
+        if (command.outcome.advances) return path;
+
+        const nextFacts = new Set(node.facts);
+        (command.outcome.revealsFacts ?? []).forEach((factId) => nextFacts.add(factId));
+        const key = [...nextFacts].sort().join(',');
+        if (seen.has(key)) continue;
+        seen.add(key);
+        next.push({ facts: nextFacts, path });
+      }
+
+      for (const event of pinnable) {
+        const factId = event.revealsFact!;
+        if (node.facts.has(factId)) continue;
+
+        const nextFacts = new Set(node.facts);
+        nextFacts.add(factId);
+        const key = [...nextFacts].sort().join(',');
+        if (seen.has(key)) continue;
+        seen.add(key);
+        next.push({ facts: nextFacts, path: [...node.path, `pin ${event.id}`] });
+      }
     }
+
+    frontier = next;
   }
 
   return null;
