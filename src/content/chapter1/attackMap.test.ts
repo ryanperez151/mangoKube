@@ -1,43 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { sentinelAttackMap, deriveNodeState } from './attackMap';
+import { sentinelAttackMap } from './attackMap';
 import { sentinelCampaign } from './sentinel';
-
-describe('deriveNodeState', () => {
-  const node = {
-    id: 'n',
-    label: 'n',
-    tactic: 't',
-    summary: 's',
-    lesson: 'l',
-    prevention: 'p',
-    suspectedByFacts: ['a'],
-    confirmedByFacts: ['a', 'b'],
-    containedByFacts: ['c'],
-    x: 0,
-    y: 0,
-  };
-
-  it('is undiscovered with no facts', () => {
-    expect(deriveNodeState(node, new Set())).toBe('undiscovered');
-  });
-
-  it('is suspected once the suspecting facts are all collected', () => {
-    expect(deriveNodeState(node, new Set(['a']))).toBe('suspected');
-  });
-
-  it('is confirmed once the confirming facts are all collected', () => {
-    expect(deriveNodeState(node, new Set(['a', 'b']))).toBe('confirmed');
-  });
-
-  it('is contained once the containing facts are all collected', () => {
-    expect(deriveNodeState(node, new Set(['a', 'b', 'c']))).toBe('contained');
-  });
-
-  it('treats an empty fact list as never triggering', () => {
-    const never = { ...node, suspectedByFacts: [], confirmedByFacts: [], containedByFacts: [] };
-    expect(deriveNodeState(never, new Set(['a', 'b', 'c']))).toBe('undiscovered');
-  });
-});
 
 describe('sentinelAttackMap', () => {
   it('uses unique node ids', () => {
@@ -78,6 +41,19 @@ describe('sentinelAttackMap', () => {
           `node "${node.id}" references unknown fact "${factId}"`
         ).toBeDefined();
       }
+    }
+  });
+
+  it('maps every campaign fact to at least one node', () => {
+    const mapped = new Set(
+      sentinelAttackMap.flatMap((node) => [
+        ...node.suspectedByFacts,
+        ...node.confirmedByFacts,
+        ...node.containedByFacts,
+      ])
+    );
+    for (const factId of Object.keys(sentinelCampaign.factLibrary)) {
+      expect(mapped.has(factId), `fact "${factId}" is not on the attack map`).toBe(true);
     }
   });
 });

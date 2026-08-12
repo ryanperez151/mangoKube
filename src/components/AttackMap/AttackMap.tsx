@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import type { AttackMapNode, AttackMapNodeState } from '@/content/types';
-import { deriveNodeState } from '@/content/chapter1/attackMap';
+import { deriveNodeState } from '@/engine/attackMap';
 
 interface AttackMapProps {
   nodes: AttackMapNode[];

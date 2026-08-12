@@ -2,7 +2,7 @@ import type { LogEvent } from '@/content/types';
 import { generateNoiseEvents } from './noise';
 import { signalEvents } from './signal';
 
-export { TIME_RANGES, DEFAULT_TIME_RANGE_ID, INCIDENT_NOW_ISO } from './timeRanges';
+export { TIME_RANGES, INCIDENT_NOW_ISO } from './timeRanges';
 
 /**
  * Noise is weighted toward the recent window so the default one-hour

@@ -29,5 +29,3 @@ export const TIME_RANGES: TimeRange[] = [
     endIso: INCIDENT_NOW_ISO,
   },
 ];
-
-export const DEFAULT_TIME_RANGE_ID = 'last-1h';

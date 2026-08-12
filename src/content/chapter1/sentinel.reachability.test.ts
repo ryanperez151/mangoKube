@@ -58,4 +58,21 @@ describe('sentinelCampaign', () => {
     expect(sentinelCampaign.attackMap?.length).toBeGreaterThan(0);
     expect(sentinelCampaign.timeRanges?.length).toBeGreaterThan(0);
   });
+
+  it('makes every fact-revealing event findable in at least one time range', () => {
+    const ranges = sentinelCampaign.timeRanges ?? [];
+    expect(ranges.length).toBeGreaterThan(0);
+
+    for (const event of sentinelCampaign.logCorpus ?? []) {
+      if (!event.revealsFact) continue;
+      const at = Date.parse(event.timestamp);
+      const visibleIn = ranges.filter(
+        (range) => at >= Date.parse(range.startIso) && at < Date.parse(range.endIso)
+      );
+      expect(
+        visibleIn.length,
+        `event "${event.id}" falls outside every selectable time range`
+      ).toBeGreaterThan(0);
+    }
+  });
 });

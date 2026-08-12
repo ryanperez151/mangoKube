@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { useSimStore } from '@/engine/store';
 import { chapter1Campaigns } from '@/content/chapter1';
 import MissionPage from './page';
@@ -90,8 +90,10 @@ describe('MissionPage — Sentinel', () => {
     render(<MissionPage />);
     fireEvent.click(screen.getByText('Begin'));
 
-    useSimStore.getState().pinEvent('sig-shell-spawn');
-    useSimStore.getState().pinEvent('sig-exec-create');
+    act(() => {
+      useSimStore.getState().pinEvent('sig-shell-spawn');
+      useSimStore.getState().pinEvent('sig-exec-create');
+    });
 
     expect(useSimStore.getState().stageIndex).toBe(1);
   });
@@ -104,15 +106,17 @@ describe('MissionPage — Sentinel', () => {
 
   it('shows the terminal once the containment stage is reached', () => {
     const store = useSimStore.getState();
-    store.pinEvent('sig-shell-spawn');
-    store.pinEvent('sig-exec-create');
-    useSimStore.getState().pinEvent('sig-sa-out-of-scope');
-    useSimStore.getState().pinEvent('sig-binding-in-effect');
-    useSimStore.getState().pinEvent('sig-binding-origin');
-    useSimStore.getState().pinEvent('sig-secret-read');
-    useSimStore.getState().pinEvent('sig-exfil-egress');
-    useSimStore.getState().pinEvent('sig-rogue-sa');
-    useSimStore.getState().pinEvent('sig-rogue-binding');
+    act(() => {
+      store.pinEvent('sig-shell-spawn');
+      store.pinEvent('sig-exec-create');
+      useSimStore.getState().pinEvent('sig-sa-out-of-scope');
+      useSimStore.getState().pinEvent('sig-binding-in-effect');
+      useSimStore.getState().pinEvent('sig-binding-origin');
+      useSimStore.getState().pinEvent('sig-secret-read');
+      useSimStore.getState().pinEvent('sig-exfil-egress');
+      useSimStore.getState().pinEvent('sig-rogue-sa');
+      useSimStore.getState().pinEvent('sig-rogue-binding');
+    });
 
     expect(useSimStore.getState().stageIndex).toBe(4);
 

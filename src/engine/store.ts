@@ -6,6 +6,24 @@ import type { Campaign, CampaignId, ClusterDelta, TerminalEntry } from '@/conten
 
 type ClusterStatus = 'nominal' | 'suspicious' | 'compromised' | 'contained';
 
+/**
+ * The shape written to storage by `partialize` below — kept as an explicit
+ * type so `migrate` can describe what it receives/returns without `any`.
+ */
+interface PersistedProgress {
+  campaignId: CampaignId | null;
+  stageIndex: number;
+  revealedFacts: string[];
+  collectedFacts: string[];
+  terminalHistory: TerminalEntry[];
+  clusterStatus: ClusterStatus;
+  highlightedNodeIds: string[];
+  revealedEdgeIds: string[];
+  pinnedEvidence: string[];
+  activeQuery: string;
+  timeRangeId: string;
+}
+
 interface SimState {
   campaign: Campaign | null;
   campaignId: CampaignId | null;
@@ -84,12 +102,27 @@ export const useSimStore = create<SimState>()(
           required.length > 0 && required.every((factId) => collectedFacts.includes(factId));
 
         if (forceAdvance || advanceWhenMet) {
-          const nextStage = campaign.stages[stageIndex + 1];
+          // A stage entered with its advanceWhen facts already collected
+          // would otherwise stall: pinEvent refuses to re-pin, so nothing
+          // would re-trigger the check. Cascade through any such stages,
+          // bounded by the stage count.
+          let nextIndex = stageIndex + 1;
+          while (nextIndex < campaign.stages.length) {
+            const required = campaign.stages[nextIndex].advanceWhen?.facts ?? [];
+            if (
+              required.length === 0 ||
+              !required.every((factId) => collectedFacts.includes(factId))
+            ) {
+              break;
+            }
+            nextIndex += 1;
+          }
+          const nextStage = campaign.stages[nextIndex];
           set({
             ...extra,
             collectedFacts,
             revealedFacts: [],
-            stageIndex: stageIndex + 1,
+            stageIndex: nextIndex,
             clusterStatus:
               nextStage?.clusterInitial.status ?? delta?.status ?? state.clusterStatus,
             highlightedNodeIds:
@@ -129,6 +162,7 @@ export const useSimStore = create<SimState>()(
             campaign,
             campaignId: campaign.id,
             ...initialTransientState,
+            timeRangeId: campaign.timeRanges?.[0]?.id ?? 'last-1h',
             ...enterStagePatch(firstStage.clusterInitial, 'nominal'),
           });
         },
@@ -205,6 +239,20 @@ export const useSimStore = create<SimState>()(
         activeQuery: state.activeQuery,
         timeRangeId: state.timeRangeId,
       }),
+      version: 1,
+      migrate: (persisted, version): PersistedProgress => {
+        // The Sentinel campaign was rewritten around log-evidence pinning:
+        // every stage id and fact id changed, so a v0 save resumes into a
+        // stage index that now means something else, carrying dead fact ids.
+        // Infiltrator was untouched, so its saves migrate cleanly.
+        if (version === 0) {
+          const state = persisted as Partial<PersistedProgress> | null;
+          if (state?.campaignId === 'sentinel') {
+            return { campaignId: null, ...initialTransientState };
+          }
+        }
+        return persisted as PersistedProgress;
+      },
     }
   )
 );

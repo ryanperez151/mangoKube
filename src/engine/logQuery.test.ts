@@ -53,6 +53,13 @@ describe('parseQuery', () => {
     const result = parseQuery('message="never closed');
     expect(result).toEqual({ ok: false, error: 'Unterminated quote in query.' });
   });
+
+  it('rejects a negated bare term rather than silently including it', () => {
+    expect(parseQuery('-healthz')).toEqual({
+      ok: false,
+      error: 'Negated bare terms are not supported — use -field=value.',
+    });
+  });
 });
 
 const events: LogEvent[] = [

@@ -82,7 +82,14 @@ export function LogExplorer({
   return (
     <section className="flex h-full flex-col gap-3" aria-label="log explorer">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <TimeRangeSelect ranges={ranges} value={timeRangeId} onChange={onTimeRangeChange} />
+        <TimeRangeSelect
+          ranges={ranges}
+          value={timeRangeId}
+          onChange={(rangeId) => {
+            setEmptyStreak(0);
+            onTimeRangeChange(rangeId);
+          }}
+        />
         {result.unknownFields.length > 0 && (
           <p data-testid="unknown-fields" className="font-mono text-xs text-mango-500">
             No events carry the field{result.unknownFields.length > 1 ? 's' : ''}:{' '}

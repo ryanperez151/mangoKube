@@ -259,6 +259,71 @@ describe('query state', () => {
   });
 });
 
+describe('persist migration', () => {
+  it('discards a pre-rework Sentinel save', () => {
+    localStorage.setItem(
+      'operation-mango-progress',
+      JSON.stringify({
+        state: { campaignId: 'sentinel', stageIndex: 3, collectedFacts: ['found-binding'] },
+        version: 0,
+      })
+    );
+
+    useSimStore.persist.rehydrate();
+
+    const state = useSimStore.getState();
+    expect(state.campaignId).toBeNull();
+    expect(state.collectedFacts).toEqual([]);
+  });
+});
+
+describe('advanceWhen cascade', () => {
+  it('cascades past a stage whose advanceWhen facts are already collected', () => {
+    const campaign: Campaign = {
+      ...testCampaign,
+      stages: [
+        {
+          id: 'a',
+          title: 'A',
+          briefing: [],
+          objective: 'o',
+          clusterInitial: { status: 'nominal' },
+          commands: [
+            {
+              match: /^go$/,
+              description: 'go',
+              outcome: { output: [], revealsFacts: ['shared'], advances: true },
+            },
+          ],
+        },
+        {
+          id: 'b',
+          title: 'B',
+          briefing: [],
+          objective: 'o',
+          clusterInitial: { status: 'suspicious' },
+          commands: [],
+          advanceWhen: { facts: ['shared'] },
+        },
+        {
+          id: 'c',
+          title: 'C',
+          briefing: [],
+          objective: 'o',
+          clusterInitial: { status: 'compromised' },
+          commands: [],
+        },
+      ],
+    };
+
+    useSimStore.getState().startCampaign(campaign);
+    useSimStore.getState().runCommand('go');
+
+    // Stage b's advanceWhen was already satisfied on entry, so it must not stall there.
+    expect(useSimStore.getState().stageIndex).toBe(2);
+  });
+});
+
 describe('cluster visuals across stage advance', () => {
   it('carries highlights forward when the next stage sets none of its own', () => {
     const campaign: Campaign = {

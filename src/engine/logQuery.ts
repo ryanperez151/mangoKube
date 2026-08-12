@@ -47,6 +47,12 @@ export function parseQuery(input: string): QueryParseResult {
     const equalsAt = body.indexOf('=');
 
     if (equalsAt === -1) {
+      if (negated) {
+        return {
+          ok: false,
+          error: 'Negated bare terms are not supported — use -field=value.',
+        };
+      }
       terms.push(body);
       continue;
     }
