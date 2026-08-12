@@ -59,7 +59,7 @@ describe('AttackMap', () => {
     render(<AttackMap nodes={nodes} facts={['f1', 'f2']} />);
     expect(screen.getByTestId('map-node-exec')).toHaveAttribute(
       'aria-label',
-      expect.stringContaining('confirmed')
+      'Interactive shell — confirmed'
     );
   });
 
@@ -89,5 +89,14 @@ describe('AttackMap', () => {
   it('draws a limb between a node and its parent', () => {
     render(<AttackMap nodes={nodes} facts={[]} />);
     expect(screen.getByTestId('map-limb-exec')).toBeInTheDocument();
+  });
+
+  it('closes the detail when a node stops being discovered', () => {
+    const { rerender } = render(<AttackMap nodes={nodes} facts={['f1', 'f2']} />);
+    fireEvent.click(screen.getByTestId('map-node-exec'));
+    expect(screen.getByTestId('map-detail')).toBeInTheDocument();
+
+    rerender(<AttackMap nodes={nodes} facts={[]} />);
+    expect(screen.queryByTestId('map-detail')).toBeNull();
   });
 });
