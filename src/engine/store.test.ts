@@ -39,6 +39,46 @@ const testCampaign: Campaign = {
       objective: 'o2',
       clusterInitial: { status: 'suspicious' },
       commands: [],
+      advanceWhen: { facts: ['later-fact'] },
+    },
+    {
+      id: 'stage-3',
+      title: 'Stage 3',
+      briefing: [],
+      objective: 'o3',
+      clusterInitial: { status: 'compromised' },
+      commands: [],
+    },
+  ],
+  logCorpus: [
+    {
+      id: 'ev-a',
+      timestamp: '2026-08-12T02:00:00Z',
+      source: 'edr',
+      message: 'suspicious thing',
+      fields: { pod: 'p' },
+      arrivesAtStage: 0,
+      revealsFact: 'seen-pod',
+      analystNote: 'note a',
+    },
+    {
+      id: 'ev-benign',
+      timestamp: '2026-08-12T02:05:00Z',
+      source: 'edr',
+      message: 'routine thing',
+      fields: { pod: 'p' },
+      arrivesAtStage: 0,
+      analystNote: 'nothing to see',
+    },
+    {
+      id: 'ev-late',
+      timestamp: '2026-08-12T02:06:00Z',
+      source: 'edr',
+      message: 'later thing',
+      fields: { pod: 'p' },
+      arrivesAtStage: 1,
+      revealsFact: 'later-fact',
+      analystNote: 'note late',
     },
   ],
 };
@@ -143,5 +183,78 @@ describe('persisted state excludes non-serializable campaign content (regression
       'Command not recognized in this context.',
     ]);
     expect(state.revealedFacts).toContain('found-implant-pod');
+  });
+});
+
+describe('evidence pinning', () => {
+  it('reveals a fact when a signal event is pinned', () => {
+    useSimStore.getState().startCampaign(testCampaign);
+    useSimStore.getState().pinEvent('ev-a');
+    const state = useSimStore.getState();
+    expect(state.pinnedEvidence).toEqual(['ev-a']);
+    expect(state.collectedFacts).toEqual(['seen-pod']);
+  });
+
+  it('pins a benign event without revealing anything or advancing', () => {
+    useSimStore.getState().startCampaign(testCampaign);
+    useSimStore.getState().pinEvent('ev-benign');
+    const state = useSimStore.getState();
+    expect(state.pinnedEvidence).toEqual(['ev-benign']);
+    expect(state.collectedFacts).toEqual([]);
+    expect(state.stageIndex).toBe(0);
+  });
+
+  it('ignores a pin for an event that has not arrived yet', () => {
+    useSimStore.getState().startCampaign(testCampaign);
+    useSimStore.getState().pinEvent('ev-late');
+    expect(useSimStore.getState().pinnedEvidence).toEqual([]);
+  });
+
+  it('does not double-pin the same event', () => {
+    useSimStore.getState().startCampaign(testCampaign);
+    useSimStore.getState().pinEvent('ev-a');
+    useSimStore.getState().pinEvent('ev-a');
+    expect(useSimStore.getState().pinnedEvidence).toEqual(['ev-a']);
+  });
+
+  it('unpins an event without retracting the fact it established', () => {
+    useSimStore.getState().startCampaign(testCampaign);
+    useSimStore.getState().pinEvent('ev-a');
+    useSimStore.getState().unpinEvent('ev-a');
+    const state = useSimStore.getState();
+    expect(state.pinnedEvidence).toEqual([]);
+    expect(state.collectedFacts).toEqual(['seen-pod']);
+  });
+
+  it('advances the stage when a pin satisfies advanceWhen', () => {
+    useSimStore.getState().startCampaign(testCampaign);
+    useSimStore.getState().runCommand('look');
+    useSimStore.getState().runCommand('act');
+    expect(useSimStore.getState().stageIndex).toBe(1);
+    // 'ev-late' has now arrived (arrivesAtStage 1) and reveals the fact
+    // stage-2's advanceWhen requires.
+    useSimStore.getState().pinEvent('ev-late');
+    expect(useSimStore.getState().stageIndex).toBe(2);
+  });
+});
+
+describe('query state', () => {
+  it('stores the active query and time range', () => {
+    useSimStore.getState().startCampaign(testCampaign);
+    useSimStore.getState().setQuery('source=edr');
+    useSimStore.getState().setTimeRange('all-time');
+    const state = useSimStore.getState();
+    expect(state.activeQuery).toBe('source=edr');
+    expect(state.timeRangeId).toBe('all-time');
+  });
+
+  it('clears query and pinned evidence when a campaign starts', () => {
+    useSimStore.getState().startCampaign(testCampaign);
+    useSimStore.getState().setQuery('source=edr');
+    useSimStore.getState().pinEvent('ev-a');
+    useSimStore.getState().startCampaign(testCampaign);
+    const state = useSimStore.getState();
+    expect(state.activeQuery).toBe('');
+    expect(state.pinnedEvidence).toEqual([]);
   });
 });
