@@ -160,12 +160,19 @@ export default function MissionPage() {
           </div>
 
           <div className="min-h-0 flex-1 rounded border border-mango-500/20 bg-orchard-900/40 p-3">
-            <CaseFile
-              objective={stage.objective}
-              pinnedEvents={pinnedEvents}
-              facts={establishedFacts}
-              onUnpin={unpinEvent}
-            />
+            {hasLogExplorer ? (
+              <CaseFile
+                objective={stage.objective}
+                pinnedEvents={pinnedEvents}
+                facts={establishedFacts}
+                onUnpin={unpinEvent}
+              />
+            ) : (
+              <div>
+                <h2 className="text-[10px] uppercase tracking-widest text-mango-500">Objective</h2>
+                <p className="text-sm leading-relaxed text-mango-100">{stage.objective}</p>
+              </div>
+            )}
           </div>
         </aside>
       </div>

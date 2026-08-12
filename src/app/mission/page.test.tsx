@@ -48,6 +48,22 @@ describe('MissionPage — Infiltrator', () => {
     fireEvent.click(screen.getByText('Begin'));
     expect(screen.queryByLabelText('log explorer')).toBeNull();
   });
+
+  it('does not show a case file for a campaign with no log explorer', () => {
+    useSimStore.getState().startCampaign(chapter1Campaigns.infiltrator);
+    render(<MissionPage />);
+    fireEvent.click(screen.getByText('Begin'));
+    expect(screen.queryByLabelText('case file')).toBeNull();
+  });
+
+  it('still shows the stage objective without a case file', () => {
+    useSimStore.getState().startCampaign(chapter1Campaigns.infiltrator);
+    render(<MissionPage />);
+    fireEvent.click(screen.getByText('Begin'));
+    expect(
+      screen.getByText('Find where the implant landed and what it can do.')
+    ).toBeInTheDocument();
+  });
 });
 
 describe('MissionPage — Sentinel', () => {
@@ -78,6 +94,12 @@ describe('MissionPage — Sentinel', () => {
     useSimStore.getState().pinEvent('sig-exec-create');
 
     expect(useSimStore.getState().stageIndex).toBe(1);
+  });
+
+  it('still shows the case file for a campaign with a log explorer', () => {
+    render(<MissionPage />);
+    fireEvent.click(screen.getByText('Begin'));
+    expect(screen.getByLabelText('case file')).toBeInTheDocument();
   });
 
   it('shows the terminal once the containment stage is reached', () => {
