@@ -25,7 +25,7 @@ export function SearchBar({ value, onChange, onSubmit, error, resultCount }: Sea
         <input
           aria-label="search query"
           className="flex-1 bg-transparent font-mono text-sm text-mango-100 outline-none placeholder:text-mango-300/30"
-          placeholder="source=k8s-audit user=ci-deploy-bot"
+          placeholder="Search fields or terms"
           value={value}
           onChange={(event) => onChange(event.target.value)}
           autoComplete="off"

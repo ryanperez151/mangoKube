@@ -107,7 +107,9 @@ describe('MissionPage shared workspace shell', () => {
     const dialog = screen.getByRole('dialog', { name: /mission help/i });
     expect(dialog).toBeInTheDocument();
     expect(screen.getByText('Start with the workloads already running in the cluster.')).toBeInTheDocument();
-    await waitFor(() => expect(document.activeElement).toBe(dialog));
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close help' }))
+    );
 
     fireEvent.keyDown(dialog, { key: 'Escape' });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -125,12 +127,11 @@ describe('MissionPage shared workspace shell', () => {
     expect(screen.getByTestId('workspace-content')).toHaveAttribute('inert');
     const closeButton = screen.getByRole('button', { name: 'Close help' });
     const replayButton = screen.getByRole('button', { name: /replay briefing/i });
-    replayButton.focus();
-    fireEvent.keyDown(replayButton, { key: 'Tab' });
-    expect(document.activeElement).toBe(closeButton);
-    closeButton.focus();
+    await waitFor(() => expect(document.activeElement).toBe(closeButton));
     fireEvent.keyDown(closeButton, { key: 'Tab', shiftKey: true });
     expect(document.activeElement).toBe(replayButton);
+    fireEvent.keyDown(replayButton, { key: 'Tab' });
+    expect(document.activeElement).toBe(closeButton);
     fireEvent.keyDown(replayButton, { key: 'Escape' });
     await waitFor(() => expect(document.activeElement).toBe(helpButton));
     expect(screen.getByTestId('workspace-content')).not.toHaveAttribute('inert');

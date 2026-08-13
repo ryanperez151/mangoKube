@@ -100,9 +100,10 @@ function MissionHelp({
   returnFocusRef: RefObject<HTMLButtonElement>;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const firstActionRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    if (open) dialogRef.current?.focus();
+    if (open) firstActionRef.current?.focus();
   }, [open]);
 
   if (!open) return null;
@@ -141,7 +142,7 @@ function MissionHelp({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Mission help"
+        aria-labelledby="mission-help-title"
         tabIndex={-1}
         onKeyDown={keepFocusInside}
         className="w-full max-w-xl p-6"
@@ -151,11 +152,11 @@ function MissionHelp({
             <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-slate-500">
               Guidance tier {level}
             </p>
-            <h2 className="mt-1 font-display text-2xl font-bold uppercase tracking-[0.08em] text-slate-100">
+            <h2 id="mission-help-title" className="mt-1 font-display text-2xl font-bold uppercase tracking-[0.08em] text-slate-100">
               Mission help
             </h2>
           </div>
-          <ActionButton variant="quiet" onClick={close}>Close help</ActionButton>
+          <ActionButton ref={firstActionRef} variant="quiet" onClick={close}>Close help</ActionButton>
         </div>
         <div className="mt-5 space-y-3 text-base leading-7 text-slate-300">
           {(guidance?.lines ?? ['Review the current objective and established facts.']).map((line) => (
@@ -314,7 +315,9 @@ function MissionExperience() {
     if (!campaign || !stage || pendingStageResolution || replayBriefing) return;
     const unresolvedDecision = stage.decision && !decisions[stage.decision.id];
     if (unresolvedDecision || !seenBriefingIds.includes(stage.id)) return;
-    queueMicrotask(() => workspaceHeadingRef.current?.focus());
+    queueMicrotask(() => {
+      if (document.activeElement === document.body) workspaceHeadingRef.current?.focus();
+    });
   }, [campaign, stage, pendingStageResolution, replayBriefing, decisions, seenBriefingIds]);
 
   if (!hasHydrated || !campaignId || !campaign || !stage) {
