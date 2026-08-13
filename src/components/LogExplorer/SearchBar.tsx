@@ -40,7 +40,7 @@ export function SearchBar({ value, onChange, onSubmit, error, resultCount }: Sea
       </div>
 
       {error ? (
-        <p role="alert" className="font-mono text-xs text-blight-400">
+        <p role="alert" className="font-mono text-xs text-mango-300">
           {error}
         </p>
       ) : (

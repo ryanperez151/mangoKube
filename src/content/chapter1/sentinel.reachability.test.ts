@@ -39,6 +39,7 @@ describe('sentinelCampaign', () => {
 
   it('makes early containment reveal the revoked binding and pivot to choice-visible rogue activity', () => {
     const scope = sentinelCampaign.stages[2];
+    expect(scope.decision?.timing).toBe('after-stage');
     const containNow = scope.decision?.options.find((option) => option.id === 'contain-now');
     expect(containNow?.effects?.revealsFacts).toContain('revoked-primary-binding');
 

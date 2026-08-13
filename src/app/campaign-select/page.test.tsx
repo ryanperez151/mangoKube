@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
+import { chapter1Campaigns } from '@/content/chapter1';
 import { useSimStore } from '@/engine/store';
 import CampaignSelectPage from './page';
 
@@ -10,6 +11,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 beforeEach(() => {
+  vi.restoreAllMocks();
   push.mockReset();
   useSimStore.getState().resetProgress();
   localStorage.clear();
@@ -40,11 +42,43 @@ describe('CampaignSelectPage', () => {
   });
 
   it('starts the selected campaign and enters the mission', () => {
+    const confirm = vi.spyOn(window, 'confirm');
     render(<CampaignSelectPage />);
 
     fireEvent.click(screen.getByRole('button', { name: /deploy as the sentinel/i }));
 
     expect(useSimStore.getState().campaignId).toBe('sentinel');
+    expect(push).toHaveBeenCalledWith('/mission');
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it.each([0, chapter1Campaigns.sentinel.stages.length])(
+    'preserves a hydrated save at stage %i when direct replacement is cancelled',
+    (stageIndex) => {
+      useSimStore.getState().startCampaign(chapter1Campaigns.sentinel);
+      useSimStore.setState({ stageIndex });
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+      render(<CampaignSelectPage />);
+
+      fireEvent.click(screen.getByRole('button', { name: /deploy as the infiltrator/i }));
+
+      expect(confirm).toHaveBeenCalledWith(expect.stringMatching(/replace.*progress/i));
+      expect(useSimStore.getState().campaignId).toBe('sentinel');
+      expect(useSimStore.getState().stageIndex).toBe(stageIndex);
+      expect(push).not.toHaveBeenCalled();
+    }
+  );
+
+  it('replaces a hydrated save after direct-route confirmation', () => {
+    useSimStore.getState().startCampaign(chapter1Campaigns.sentinel);
+    useSimStore.setState({ stageIndex: 2 });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<CampaignSelectPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: /deploy as the infiltrator/i }));
+
+    expect(useSimStore.getState().campaignId).toBe('infiltrator');
+    expect(useSimStore.getState().stageIndex).toBe(0);
     expect(push).toHaveBeenCalledWith('/mission');
   });
 

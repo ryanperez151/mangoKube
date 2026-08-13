@@ -102,6 +102,14 @@ function asRecord(value: unknown): Record<string, unknown> {
 }
 
 const PERSISTED_PROGRESS_KEYS = new Set(Object.keys(initialPersistedProgress));
+const SAFE_DECISION_DEFAULTS: Record<CampaignId, Readonly<Record<string, string>>> = {
+  sentinel: { 'containment-timing': 'hunt-first' },
+  infiltrator: { 'operational-order': 'exfil-first' },
+};
+
+export function safeDecisionDefault(campaignId: CampaignId, decisionId: string): string | undefined {
+  return SAFE_DECISION_DEFAULTS[campaignId][decisionId];
+}
 
 function isCanonicalEmptyProgress(source: Record<string, unknown>): boolean {
   const keys = Object.keys(source);
@@ -211,7 +219,8 @@ export function normalizePersistedProgress(value: unknown): {
     const option = stage.decision.options.find((candidate) => candidate.id === selected);
     if (option) decisions[stage.decision.id] = option.id;
     else if (stageIndex > decisionStageIndex) {
-      decisions[stage.decision.id] = stage.decision.options[0].id;
+      const defaultOptionId = safeDecisionDefault(campaignId, stage.decision.id);
+      if (defaultOptionId) decisions[stage.decision.id] = defaultOptionId;
       recovered = true;
     } else if (selected !== undefined) recovered = true;
   });

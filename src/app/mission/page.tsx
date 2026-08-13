@@ -311,28 +311,31 @@ function MissionExperience() {
         : []
     )
     .at(-1);
+  const unresolvedDecision = stage?.decision && !decisions[stage.decision.id]
+    ? stage.decision
+    : undefined;
+  const decisionBeforeStage = unresolvedDecision?.timing === 'before-stage';
+  const decisionAfterStage = unresolvedDecision?.timing === 'after-stage' && Boolean(pendingStageResolution);
 
   useEffect(() => {
     if (!campaign || !stage || pendingStageResolution || replayBriefing) return;
-    const unresolvedDecision = stage.decision && !decisions[stage.decision.id];
-    if (unresolvedDecision || !seenBriefingIds.includes(stage.id)) return;
+    if (decisionBeforeStage || !seenBriefingIds.includes(stage.id)) return;
     queueMicrotask(() => {
       if (document.activeElement === document.body) workspaceHeadingRef.current?.focus();
     });
-  }, [campaign, stage, pendingStageResolution, replayBriefing, decisions, seenBriefingIds]);
+  }, [campaign, stage, pendingStageResolution, replayBriefing, decisionBeforeStage, seenBriefingIds]);
 
   if (!hasHydrated || !campaignId || !campaign || !stage) {
     return <AppFrame message="Loading active operation" />;
   }
 
+  if (decisionBeforeStage || decisionAfterStage) {
+    return <DecisionScene onSelected={() => setDecisionJustResolved(true)} />;
+  }
   if (pendingStageResolution) return <StageResolutionScene />;
   if (replayBriefing || !seenBriefingIds.includes(stage.id)) {
     return <BriefingScene onBegin={() => setReplayBriefing(false)} />;
   }
-  if (stage.decision && !decisions[stage.decision.id]) {
-    return <DecisionScene onSelected={() => setDecisionJustResolved(true)} />;
-  }
-
   function announceFact(factId: string) {
     const fact = campaign?.factLibrary[factId];
     if (!fact) return;

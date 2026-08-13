@@ -36,6 +36,7 @@ describe('infiltratorCampaign', () => {
 
   it('uses choice-visible escalation commands that converge on the same three facts', () => {
     const escalation = infiltratorCampaign.stages[3];
+    expect(escalation.decision?.timing).toBe('before-stage');
     const expectedFacts = ['exfiltrated-ip', 'persistence-sa-created', 'persistence-binding-created'];
 
     for (const optionId of ['exfil-first', 'persistence-first']) {

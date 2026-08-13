@@ -111,7 +111,7 @@ export const infiltratorCampaign: Campaign = {
         { level: 3, lines: ['Follow the available commands: the selected route gates the alternate operation until the required fact exists.'] },
       ],
       decision: {
-        id: 'operational-order', prompt: 'Which risk do you accept first: exposure during theft or exposure before persistence is planted?',
+        id: 'operational-order', timing: 'before-stage', prompt: 'Which risk do you accept first: exposure during theft or exposure before persistence is planted?',
         options: [
           { id: 'exfil-first', label: 'Exfiltrate first', description: 'Take the genome before investing in a quieter foothold.' },
           { id: 'persistence-first', label: 'Plant persistence first', description: 'Secure the return path before touching the target secret.' },

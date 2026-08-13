@@ -47,33 +47,31 @@ type SeedOptions = {
 };
 
 export async function seedProgress(page: Page, role: Role, stageIndex: number, options: SeedOptions = {}) {
-  await page.addInitScript(
-    ({ campaignId, index, overrides }) => {
-      localStorage.setItem(
-        'operation-mango-progress',
-        JSON.stringify({
-          version: 2,
-          state: {
-            campaignId,
-            stageIndex: index,
-            revealedFacts: overrides.revealedFacts ?? [],
-            collectedFacts: overrides.collectedFacts ?? [],
-            terminalHistory: [],
-            clusterStatus: overrides.clusterStatus ?? 'nominal',
-            highlightedNodeIds: [],
-            revealedEdgeIds: [],
-            pinnedEvidence: [],
-            activeQuery: '',
-            timeRangeId: 'last-1h',
-            decisions: overrides.decisions ?? {},
-            guidanceLevelByStage: {},
-            failedAttemptsByStage: {},
-            seenBriefingIds: overrides.seenBriefingIds ?? [],
-            pendingStageResolution: overrides.pendingStageResolution ?? null,
-          },
-        })
-      );
-    },
-    { campaignId: role, index: stageIndex, overrides: options }
-  );
+  if (new URL(page.url()).origin !== 'http://127.0.0.1:43175') await page.goto('/');
+  await page.evaluate(({ campaignId, index, overrides }) => {
+    localStorage.setItem(
+      'operation-mango-progress',
+      JSON.stringify({
+        version: 2,
+        state: {
+          campaignId,
+          stageIndex: index,
+          revealedFacts: overrides.revealedFacts ?? [],
+          collectedFacts: overrides.collectedFacts ?? [],
+          terminalHistory: [],
+          clusterStatus: overrides.clusterStatus ?? 'nominal',
+          highlightedNodeIds: [],
+          revealedEdgeIds: [],
+          pinnedEvidence: [],
+          activeQuery: '',
+          timeRangeId: 'last-1h',
+          decisions: overrides.decisions ?? {},
+          guidanceLevelByStage: {},
+          failedAttemptsByStage: {},
+          seenBriefingIds: overrides.seenBriefingIds ?? [],
+          pendingStageResolution: overrides.pendingStageResolution ?? null,
+        },
+      })
+    );
+  }, { campaignId: role, index: stageIndex, overrides: options });
 }

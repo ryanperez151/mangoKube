@@ -34,7 +34,10 @@ describe('SearchBar', () => {
     render(
       <SearchBar value="user=" onChange={() => {}} onSubmit={() => {}} error='Missing value for field "user".' />
     );
-    expect(screen.getByRole('alert')).toHaveTextContent('Missing value for field "user".');
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('Missing value for field "user".');
+    expect(alert).toHaveClass('text-mango-300');
+    expect(alert.className).not.toContain('blight');
   });
 
   it('shows the result count when there is no error', () => {

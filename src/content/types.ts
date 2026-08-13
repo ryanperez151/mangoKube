@@ -51,6 +51,7 @@ export interface MissionDecisionOption {
 
 export interface MissionDecision {
   id: string;
+  timing: 'before-stage' | 'after-stage';
   prompt: string;
   options: MissionDecisionOption[];
 }

@@ -31,7 +31,12 @@ test('Sentinel and Infiltrator workspaces pass axe WCAG 2.2 AA', async ({ page }
 });
 
 test('decision scene passes axe WCAG 2.2 AA', async ({ page }) => {
-  await seedProgress(page, 'sentinel', 2, { seenBriefingIds: ['scope'] });
+  await seedProgress(page, 'sentinel', 2, {
+    collectedFacts: ['evidence-secret-read', 'evidence-exfil-egress'],
+    revealedFacts: ['evidence-secret-read', 'evidence-exfil-egress'],
+    seenBriefingIds: ['scope'],
+    pendingStageResolution: { stageId: 'scope' },
+  });
   await page.goto('/mission');
   await expect(page.getByRole('main', { name: 'Mission decision' })).toBeVisible();
   await expectWcag22AA(page, 'decision');

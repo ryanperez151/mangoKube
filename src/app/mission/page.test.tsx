@@ -52,19 +52,47 @@ describe('MissionPage mode order', () => {
     expect(screen.getByLabelText('terminal input')).toBeInTheDocument();
   });
 
-  it('enters the workspace immediately after a decision and retains its consequence as context', () => {
-    useSimStore.getState().startCampaign(chapter1Campaigns.sentinel);
+  it('collects the Infiltrator choice before its briefing so the selected route shapes the copy', () => {
+    useSimStore.getState().startCampaign(chapter1Campaigns.infiltrator);
     act(() => {
-      useSimStore.setState({ stageIndex: 2 });
-      useSimStore.getState().markBriefingSeen('scope');
+      useSimStore.setState({ stageIndex: 3 });
     });
     render(<MissionPage />);
 
-    fireEvent.click(screen.getByRole('button', { name: /hunt persistence/i }));
+    expect(screen.getByRole('main', { name: /mission decision/i })).toBeInTheDocument();
+    expect(screen.queryByRole('main', { name: /operation briefing/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /plant persistence first/i }));
+
+    expect(screen.getByRole('main', { name: /operation briefing/i })).toBeInTheDocument();
+    expect(screen.getByText(/plant the quiet identity first/i)).toBeInTheDocument();
+    expect(screen.queryByRole('main', { name: /mission workspace/i })).not.toBeInTheDocument();
+  });
+
+  it('collects the Sentinel choice after Scope completion, then resolves and briefs the consequence', () => {
+    useSimStore.getState().startCampaign(chapter1Campaigns.sentinel);
+    act(() => {
+      useSimStore.setState({ stageIndex: 2, seenBriefingIds: ['scope'] });
+    });
+    render(<MissionPage />);
 
     expect(screen.getByRole('main', { name: /mission workspace/i })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /enter workspace/i })).not.toBeInTheDocument();
-    expect(screen.getByText(/Decision: Hunt persistence/i)).toBeInTheDocument();
+    expect(screen.queryByRole('main', { name: /mission decision/i })).not.toBeInTheDocument();
+
+    act(() => {
+      useSimStore.setState({
+        collectedFacts: ['evidence-secret-read', 'evidence-exfil-egress'],
+        revealedFacts: ['evidence-secret-read', 'evidence-exfil-egress'],
+        pendingStageResolution: { stageId: 'scope' },
+      });
+    });
+    expect(screen.getByRole('main', { name: /mission decision/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /contain now/i }));
+
+    expect(screen.getByRole('main', { name: /stage resolution/i })).toBeInTheDocument();
+    expect(screen.getByText(/revoke the primary binding/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /continue operation/i }));
+    expect(screen.getByRole('main', { name: /operation briefing/i })).toBeInTheDocument();
+    expect(screen.getByText(/attacker pivots/i)).toBeInTheDocument();
   });
 });
 
@@ -254,16 +282,19 @@ describe('MissionPage Sentinel workspace', () => {
     'makes the %s decision route events playable through the UI',
     (choice, buttonName, visibleEvent, hiddenEvent) => {
       act(() => {
-        useSimStore.setState({ stageIndex: 2, seenBriefingIds: ['triage', 'scope'] });
+        useSimStore.setState({
+          stageIndex: 2,
+          seenBriefingIds: ['triage', 'scope'],
+          collectedFacts: ['evidence-secret-read', 'evidence-exfil-egress'],
+          revealedFacts: ['evidence-secret-read', 'evidence-exfil-egress'],
+          pendingStageResolution: { stageId: 'scope' },
+        });
       });
       render(<MissionPage />);
       fireEvent.click(screen.getByRole('button', { name: buttonName }));
       expect(useSimStore.getState().decisions['containment-timing']).toBe(choice);
-
-      act(() => {
-        useSimStore.setState({ stageIndex: 3 });
-        useSimStore.getState().markBriefingSeen('persistence');
-      });
+      fireEvent.click(screen.getByRole('button', { name: /continue operation/i }));
+      fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
       expect(screen.getByText(visibleEvent)).toBeInTheDocument();
       expect(screen.queryByText(hiddenEvent)).not.toBeInTheDocument();
     }

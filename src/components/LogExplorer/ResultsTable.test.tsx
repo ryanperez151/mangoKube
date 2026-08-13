@@ -31,7 +31,9 @@ describe('ResultsTable', () => {
 
   it('shows each event source', () => {
     render(<ResultsTable events={events} selectedId={null} pinnedIds={[]} onSelect={() => {}} />);
-    expect(screen.getByText('edr')).toBeInTheDocument();
+    const edr = screen.getByText('edr');
+    expect(edr).toHaveClass('text-slate-300');
+    expect(edr.className).not.toContain('blight');
   });
 
   it('selects an event when its row button is activated', () => {

@@ -3,12 +3,14 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { parseCommand } from './terminalParser';
 import { isChoiceVisible } from './conditions';
+import { chapter1Campaigns } from '@/content/chapter1';
 import {
   clearRecoverablePersistenceIssue,
   initialPersistedProgress,
   normalizePersistedProgress,
   reportNormalization,
   resilientStorage,
+  safeDecisionDefault,
 } from './persistence';
 import type {
   Campaign,
@@ -252,9 +254,12 @@ export const useSimStore = create<SimState>()(
 
         chooseDecision: (decisionId, optionId) => {
           const state = get();
-          if (state.pendingStageResolution) return;
-          const decision = state.campaign?.stages[state.stageIndex]?.decision;
+          const stage = state.campaign?.stages[state.stageIndex];
+          const decision = stage?.decision;
           if (decision?.id !== decisionId) return;
+          if (state.decisions[decisionId]) return;
+          const stageIsPending = state.pendingStageResolution?.stageId === stage?.id;
+          if (decision.timing === 'before-stage' ? stageIsPending : !stageIsPending) return;
           const option = decision?.options.find((candidate) => candidate.id === optionId);
           if (!decision || !option) return;
 
@@ -368,9 +373,15 @@ export const useSimStore = create<SimState>()(
         };
         if (version < 2 && state) {
           const decisions = { ...defaults.decisions, ...(state.decisions ?? {}) };
-          if (state.stageIndex && state.stageIndex > 3) {
-            if (state.campaignId === 'sentinel') decisions['containment-timing'] ??= 'hunt-first';
-            if (state.campaignId === 'infiltrator') decisions['operational-order'] ??= 'exfil-first';
+          if (
+            (state.campaignId === 'sentinel' || state.campaignId === 'infiltrator') &&
+            typeof state.stageIndex === 'number'
+          ) {
+            chapter1Campaigns[state.campaignId].stages.forEach((stage, decisionStageIndex) => {
+              if (!stage.decision || state.stageIndex! <= decisionStageIndex) return;
+              const defaultOptionId = safeDecisionDefault(state.campaignId!, stage.decision.id);
+              if (defaultOptionId) decisions[stage.decision.id] ??= defaultOptionId;
+            });
           }
           return { ...defaults, ...state, decisions } as PersistedProgress;
         }

@@ -266,6 +266,7 @@ describe('findAdvancePath', () => {
       advanceWhen: { facts: ['binding-revoked'] },
       decision: {
         id: 'containment',
+        timing: 'before-stage',
         prompt: 'When?',
         options: [
           {

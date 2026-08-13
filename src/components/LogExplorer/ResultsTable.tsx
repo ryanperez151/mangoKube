@@ -12,7 +12,7 @@ interface ResultsTableProps {
 
 const SOURCE_LABEL_CLASS: Record<LogEvent['source'], string> = {
   'k8s-audit': 'text-mango-500',
-  edr: 'text-blight-400',
+  edr: 'text-slate-300',
   apiserver: 'text-leaf-300',
   'ci-cd': 'text-mango-300/70',
 };

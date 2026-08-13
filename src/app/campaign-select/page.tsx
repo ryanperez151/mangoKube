@@ -16,8 +16,13 @@ import { PersistenceStatusNotice } from '@/components/PersistenceStatus/Persiste
 function CampaignSelectExperience() {
   const router = useRouter();
   const startCampaign = useSimStore((state) => state.startCampaign);
+  const savedCampaignId = useSimStore((state) => state.campaignId);
 
   function choose(id: CampaignId) {
+    if (
+      savedCampaignId &&
+      !window.confirm('Replace the current operation? Existing campaign progress will be cleared.')
+    ) return;
     startCampaign(chapter1Campaigns[id]);
     router.push('/mission');
   }

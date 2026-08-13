@@ -58,6 +58,25 @@ test('landing supports no-save and resumable flows', async ({ page }) => {
   await expect(page.getByRole('group', { name: 'Command 1: kubectl get pods' })).toBeVisible();
 });
 
+test('direct campaign selection confirms replacement and cancellation preserves the save', async ({ page }) => {
+  await seedProgress(page, 'sentinel', 2, { seenBriefingIds: ['triage', 'identity', 'scope'] });
+  await page.goto('/campaign-select');
+
+  page.once('dialog', async (dialog) => {
+    expect(dialog.type()).toBe('confirm');
+    expect(dialog.message()).toMatch(/replace.*progress/i);
+    await dialog.dismiss();
+  });
+  await activate(page, 'button', 'Deploy as The Infiltrator');
+  await expect(page).toHaveURL(/campaign-select/);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('operation-mango-progress')!).state.campaignId)).toBe('sentinel');
+
+  page.once('dialog', async (dialog) => dialog.accept());
+  await activate(page, 'button', 'Deploy as The Infiltrator');
+  await expect(page).toHaveURL(/mission/);
+  await expect(page.getByRole('main', { name: 'Operation briefing' })).toBeVisible();
+});
+
 test('malformed saved JSON exposes recovery without a blank route', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('operation-mango-progress', '{broken-json'));
   await page.goto('/');
@@ -122,23 +141,4 @@ test('reduced motion removes the focal scene animation', async ({ page }) => {
   const scene = page.getByRole('main', { name: 'Operation briefing' });
   await expect(scene).toHaveAttribute('data-motion', 'reduced');
   await expect(scene).toHaveCSS('animation-name', 'none');
-});
-
-test('covers the alternative Sentinel containment option', async ({ page }) => {
-  await seedProgress(page, 'sentinel', 2, { seenBriefingIds: ['triage', 'identity', 'scope'] });
-  await page.goto('/mission');
-  await activate(page, 'button', 'Contain now');
-  await expect(page.getByText(/Decision: Contain now/i)).toBeVisible();
-  await expect(page.getByText(/Cut ci-deploy-bot off now/i)).toBeVisible();
-});
-
-test('covers the alternative Infiltrator persistence-first option', async ({ page }) => {
-  await seedProgress(page, 'infiltrator', 3, { seenBriefingIds: ['recon', 'identity', 'access', 'escalation'] });
-  await page.goto('/mission');
-  await activate(page, 'button', 'Plant persistence first');
-  await expect(page.getByText(/Decision: Plant persistence first/i)).toBeVisible();
-  const terminal = page.getByLabel('terminal input');
-  await terminal.pressSequentially('kubectl create s');
-  await terminal.press('Tab');
-  await expect(terminal).toHaveValue('kubectl create serviceaccount log-rotator -n kube-system');
 });

@@ -5,6 +5,7 @@ import {
   continueStage,
   pinFinding,
   runCommand,
+  seedProgress,
   startRole,
 } from './helpers';
 
@@ -75,9 +76,10 @@ test('keyboard-completes the Infiltrator campaign through the visible UI', async
     'kubectl get secrets -A',
     'kubectl auth can-i delete nodes',
   ]) await runCommand(page, command);
-  await continueStage(page);
+  await continueStage(page, false);
 
   await activate(page, 'button', 'Exfiltrate first');
+  await beginBriefing(page);
   for (const command of [
     "kubectl get secret ultra-mango-genome-db -o jsonpath='{.data}' | base64 -d",
     'kubectl create serviceaccount log-rotator -n kube-system',
@@ -120,9 +122,10 @@ test('keyboard-completes the Sentinel campaign through the visible UI', async ({
   await pinFinding(page, 'create clusterrolebindings/ci-deploy-bot-binding');
   await continueStage(page);
 
-  await activate(page, 'button', 'Hunt persistence');
   await pinFinding(page, 'get secrets/ultra-mango-genome-db');
   await pinFinding(page, 'Outbound connection to unrecognized external host');
+  await expect(page.getByRole('main', { name: 'Mission decision' })).toBeVisible();
+  await activate(page, 'button', 'Hunt persistence');
   await continueStage(page);
 
   await pinFinding(page, 'create serviceaccounts/log-rotator');
@@ -141,4 +144,62 @@ test('keyboard-completes the Sentinel campaign through the visible UI', async ({
   await expect(page).toHaveURL(/debrief/);
   await expect(page.getByRole('heading', { name: 'Incident contained' })).toBeVisible();
   await expect(page.getByText(/evidence-first route preserved/i)).toBeVisible();
+});
+
+test('completes the contain-now Sentinel route through every remaining resolution', async ({ page }) => {
+  await seedProgress(page, 'sentinel', 2, {
+    collectedFacts: ['evidence-secret-read', 'evidence-exfil-egress'],
+    revealedFacts: ['evidence-secret-read', 'evidence-exfil-egress'],
+    seenBriefingIds: ['triage', 'identity', 'scope'],
+    pendingStageResolution: { stageId: 'scope' },
+  });
+  await page.goto('/mission');
+
+  await activate(page, 'button', 'Contain now');
+  await expect(page.getByRole('main', { name: 'Stage resolution' })).toBeVisible();
+  await expect(page.getByText(/revoke the primary binding/i)).toBeVisible();
+  await activate(page, 'button', 'Continue operation');
+  await expect(page.getByText(/attacker pivots/i)).toBeVisible();
+  await beginBriefing(page);
+
+  await pinFinding(page, 'create serviceaccounts/metrics-reconciler');
+  await pinFinding(page, 'create clusterrolebindings/metrics-reconciler-admin');
+  await continueStage(page);
+
+  for (const command of [
+    'kubectl delete clusterrolebinding metrics-reconciler-admin',
+    'kubectl delete serviceaccount metrics-reconciler -n kube-system',
+    'kubectl delete pod ci-deploy-bot-7f9c4d6b6-x2k1p -n build',
+    'kubectl delete secret ultra-mango-genome-db -n product',
+  ]) await runCommand(page, command);
+  await continueStage(page, false);
+
+  await expect(page).toHaveURL(/debrief/);
+  await expect(page.getByRole('heading', { name: 'Incident contained' })).toBeVisible();
+  await expect(page.getByText(/fast revoke forced the attacker to pivot/i)).toBeVisible();
+});
+
+test('completes the persistence-first Infiltrator route through every remaining resolution', async ({ page }) => {
+  await seedProgress(page, 'infiltrator', 3, {
+    seenBriefingIds: ['recon', 'discovery', 'access'],
+  });
+  await page.goto('/mission');
+
+  await activate(page, 'button', 'Plant persistence first');
+  await expect(page.getByText(/plant the quiet identity first/i)).toBeVisible();
+  await beginBriefing(page);
+  for (const command of [
+    'kubectl create serviceaccount log-rotator -n kube-system',
+    'kubectl create clusterrolebinding log-rotator-admin --clusterrole=cluster-admin --serviceaccount=kube-system:log-rotator',
+    "kubectl get secret ultra-mango-genome-db -o jsonpath='{.data}' | base64 -d",
+  ]) await runCommand(page, command);
+  await continueStage(page);
+
+  await runCommand(page, 'kubectl delete pod ci-deploy-bot-7f9c4d6b6-x2k1p --grace-period=0 --force');
+  await runCommand(page, 'echo "handoff complete"');
+  await continueStage(page, false);
+
+  await expect(page).toHaveURL(/debrief/);
+  await expect(page.getByRole('heading', { name: 'Mission accomplished' })).toBeVisible();
+  await expect(page.getByText(/planted log-rotator before the theft/i)).toBeVisible();
 });

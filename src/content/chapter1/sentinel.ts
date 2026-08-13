@@ -80,7 +80,7 @@ export const sentinelCampaign: Campaign = {
         { level: 3, lines: ['Search `source=k8s-audit resource=secrets` and `source=edr remoteIP=203.0.113.44`.'] },
       ],
       decision: {
-        id: 'containment-timing', prompt: 'The account is still active. Contain immediately or hunt the likely persistence first?',
+        id: 'containment-timing', timing: 'after-stage', prompt: 'The account is still active. Contain immediately or hunt the likely persistence first?',
         options: [
           { id: 'contain-now', label: 'Contain now', description: 'Cut ci-deploy-bot off now; accept that the attacker may react.', effects: { revealsFacts: ['revoked-primary-binding'], clusterDelta: { status: 'compromised' } } },
           { id: 'hunt-first', label: 'Hunt persistence', description: 'Preserve the entry path long enough to expose the attacker’s second identity.' },

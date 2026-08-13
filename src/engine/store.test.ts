@@ -282,6 +282,7 @@ describe('campaign progression contracts', () => {
           ...testCampaign.stages[0],
           decision: {
             id: 'containment',
+            timing: 'before-stage',
             prompt: 'When?',
             options: [
               {
@@ -300,6 +301,7 @@ describe('campaign progression contracts', () => {
           ...testCampaign.stages[1],
           decision: {
             id: 'future-decision',
+            timing: 'before-stage',
             prompt: 'Later?',
             options: [{ id: 'later', label: 'Later', description: 'Not yet.' }],
           },
@@ -345,7 +347,7 @@ describe('campaign progression contracts', () => {
     expect(useSimStore.getState().seenBriefingIds).toEqual(['stage-1']);
   });
 
-  it('does not apply a decision change after stage completion is pending', () => {
+  it('keeps a before-stage decision immutable after stage completion is pending', () => {
     const campaign: Campaign = {
       ...testCampaign,
       stages: [
@@ -353,6 +355,7 @@ describe('campaign progression contracts', () => {
           ...testCampaign.stages[0],
           decision: {
             id: 'containment',
+            timing: 'before-stage',
             prompt: 'When?',
             options: [
               { id: 'hunt-first', label: 'Hunt first', description: 'Gather evidence.' },
@@ -377,6 +380,43 @@ describe('campaign progression contracts', () => {
     useSimStore.getState().chooseDecision('containment', 'contain-now');
     expect(useSimStore.getState().decisions).toEqual({ containment: 'hunt-first' });
     expect(useSimStore.getState().collectedFacts).not.toContain('late-decision-fact');
+  });
+
+  it('allows one after-stage decision while completion is pending and then locks it', () => {
+    const campaign: Campaign = {
+      ...testCampaign,
+      stages: [
+        {
+          ...testCampaign.stages[0],
+          decision: {
+            id: 'containment',
+            timing: 'after-stage',
+            prompt: 'When?',
+            options: [
+              { id: 'hunt-first', label: 'Hunt first', description: 'Gather evidence.' },
+              {
+                id: 'contain-now',
+                label: 'Contain now',
+                description: 'Act immediately.',
+                effects: { revealsFacts: ['binding-revoked'] },
+              },
+            ],
+          },
+        },
+        ...testCampaign.stages.slice(1),
+      ],
+    };
+    useSimStore.getState().startCampaign(campaign);
+    useSimStore.getState().runCommand('look');
+    useSimStore.getState().runCommand('act');
+
+    expect(useSimStore.getState().pendingStageResolution).toEqual({ stageId: 'stage-1' });
+    useSimStore.getState().chooseDecision('containment', 'contain-now');
+    expect(useSimStore.getState().decisions).toEqual({ containment: 'contain-now' });
+    expect(useSimStore.getState().collectedFacts).toContain('binding-revoked');
+
+    useSimStore.getState().chooseDecision('containment', 'hunt-first');
+    expect(useSimStore.getState().decisions).toEqual({ containment: 'contain-now' });
   });
 });
 
@@ -422,7 +462,7 @@ describe('persist migration', () => {
 
   it.each([
     ['sentinel', 2, {}],
-    ['sentinel', 3, { 'containment-timing': 'contain-now' }],
+    ['sentinel', 3, { 'containment-timing': 'hunt-first' }],
     ['sentinel', 4, { 'containment-timing': 'hunt-first' }],
     ['infiltrator', 3, {}],
     ['infiltrator', 4, { 'operational-order': 'exfil-first' }],
@@ -463,7 +503,7 @@ describe('persist migration', () => {
     expect(state.stageIndex).toBe(sentinelCampaign.stages.length);
     expect(state.collectedFacts).toEqual(['evidence-interactive-shell']);
     expect(state.revealedFacts).toEqual([]);
-    expect(state.decisions).toEqual({ 'containment-timing': 'contain-now' });
+    expect(state.decisions).toEqual({ 'containment-timing': 'hunt-first' });
     expect(state.pendingStageResolution).toBeNull();
   });
 
@@ -482,7 +522,32 @@ describe('persist migration', () => {
 
     await useSimStore.persist.rehydrate();
 
-    expect(useSimStore.getState().decisions).toEqual({ 'containment-timing': 'contain-now' });
+    expect(useSimStore.getState().decisions).toEqual({ 'containment-timing': 'hunt-first' });
+  });
+
+  it('repairs progressed Infiltrator saves to exfil-first independently of option order', async () => {
+    const decision = infiltratorCampaign.stages[3].decision!;
+    const originalOptions = decision.options;
+    decision.options = [...originalOptions].reverse();
+    try {
+      localStorage.setItem(
+        'operation-mango-progress',
+        JSON.stringify({
+          state: {
+            campaignId: 'infiltrator',
+            stageIndex: 4,
+            decisions: { 'operational-order': 'not-an-option' },
+          },
+          version: 2,
+        })
+      );
+
+      await useSimStore.persist.rehydrate();
+
+      expect(useSimStore.getState().decisions).toEqual({ 'operational-order': 'exfil-first' });
+    } finally {
+      decision.options = originalOptions;
+    }
   });
 
   it('reports recovery when malformed history and diagram ids are removed', async () => {
