@@ -6,12 +6,24 @@ import { useSimStore, useHasHydrated } from '@/engine/store';
 import { chapter1Campaigns } from '@/content/chapter1';
 import { Terminal } from '@/components/Terminal/Terminal';
 import { ClusterDiagram } from '@/components/ClusterDiagram/ClusterDiagram';
-import { BriefingOverlay } from '@/components/BriefingOverlay/BriefingOverlay';
 import { LogExplorer } from '@/components/LogExplorer/LogExplorer';
 import { AttackMap } from '@/components/AttackMap/AttackMap';
 import { CaseFile } from '@/components/CaseFile/CaseFile';
+import {
+  AppFrame,
+  DesktopGate,
+  ObjectiveProgress,
+  Panel,
+  StageRail,
+} from '@/components/Cinematic/Cinematic';
+import {
+  BriefingReplayButton,
+  BriefingScene,
+  DecisionScene,
+  StageResolutionScene,
+} from '@/components/Cinematic/Scenes';
 
-export default function MissionPage() {
+function MissionExperience() {
   const router = useRouter();
   const campaignId = useSimStore((state) => state.campaignId);
   const campaign = useSimStore((state) => state.campaign);
@@ -26,23 +38,19 @@ export default function MissionPage() {
   const pinnedEvidence = useSimStore((state) => state.pinnedEvidence);
   const activeQuery = useSimStore((state) => state.activeQuery);
   const timeRangeId = useSimStore((state) => state.timeRangeId);
+  const decisions = useSimStore((state) => state.decisions);
+  const seenBriefingIds = useSimStore((state) => state.seenBriefingIds);
+  const pendingStageResolution = useSimStore((state) => state.pendingStageResolution);
   const runCommand = useSimStore((state) => state.runCommand);
   const pinEvent = useSimStore((state) => state.pinEvent);
   const unpinEvent = useSimStore((state) => state.unpinEvent);
   const setQuery = useSimStore((state) => state.setQuery);
   const setTimeRange = useSimStore((state) => state.setTimeRange);
-
-  const [showBriefing, setShowBriefing] = useState(true);
+  const [replayBriefing, setReplayBriefing] = useState(false);
+  const [decisionSceneId, setDecisionSceneId] = useState<string | null>(null);
   const hasHydrated = useHasHydrated();
 
   useEffect(() => {
-    // Read campaignId fresh from the store here rather than trusting the
-    // `campaignId` selector value captured at render time: `hasHydrated`
-    // flips via a separate manually-polled effect (see useHasHydrated),
-    // not through the same zustand subscription tick as `campaignId`, so a
-    // render can transiently see `hasHydrated: true` paired with a
-    // not-yet-updated `campaignId` selector snapshot even though the
-    // store's real, current state already has the correct value.
     if (hasHydrated && !useSimStore.getState().campaignId) {
       router.replace('/campaign-select');
     }
@@ -55,7 +63,7 @@ export default function MissionPage() {
   }, [hasHydrated, campaignId, campaign, hydrateCampaign]);
 
   useEffect(() => {
-    setShowBriefing(true);
+    setReplayBriefing(false);
   }, [stageIndex]);
 
   useEffect(() => {
@@ -66,7 +74,6 @@ export default function MissionPage() {
 
   const stage = campaign?.stages[stageIndex];
 
-  /** Only what the index has received by this stage is searchable. */
   const arrivedEvents = useMemo(
     () => (campaign?.logCorpus ?? []).filter((event) => event.arrivesAtStage <= stageIndex),
     [campaign, stageIndex]
@@ -85,7 +92,26 @@ export default function MissionPage() {
     [collectedFacts, campaign]
   );
 
-  if (!hasHydrated || !campaignId || !campaign || !stage) return null;
+  if (!hasHydrated || !campaignId || !campaign || !stage) {
+    return <AppFrame message="Loading active operation" />;
+  }
+
+  if (pendingStageResolution) return <StageResolutionScene />;
+
+  if (replayBriefing || !seenBriefingIds.includes(stage.id)) {
+    return <BriefingScene onBegin={() => setReplayBriefing(false)} />;
+  }
+
+  const decision = stage.decision;
+  const decisionUnselected = Boolean(decision && !decisions[decision.id]);
+  if (decision && (decisionUnselected || decisionSceneId === decision.id)) {
+    return (
+      <DecisionScene
+        onSelected={() => setDecisionSceneId(decision.id)}
+        onAcknowledge={() => setDecisionSceneId(null)}
+      />
+    );
+  }
 
   const revealedSet = new Set(revealedFacts);
   const availableCommands = stage.commands.filter((command) =>
@@ -97,29 +123,23 @@ export default function MissionPage() {
   const showTerminal = stage.commands.length > 0;
 
   return (
-    <main className="flex min-h-screen flex-col gap-4 p-4 lg:p-6">
-      {showBriefing && (
-        <BriefingOverlay
-          title={stage.title}
-          objective={stage.objective}
-          lines={stage.briefing}
-          onDismiss={() => setShowBriefing(false)}
-        />
-      )}
-
-      <header className="flex items-baseline justify-between border-b border-mango-500/20 pb-3">
-        <h1 className="heading-stencil text-sm">
-          {campaign.title} — {stage.title}
-        </h1>
-        <p className="font-mono text-xs text-mango-300/50">
-          Stage {stageIndex + 1} of {campaign.stages.length}
-        </p>
+    <main className="app-shell flex flex-col gap-4 overflow-hidden p-5" aria-label="Mission workspace">
+      <header className="grid grid-cols-[1fr_auto] items-center gap-6 border-b border-white/10 pb-4">
+        <div>
+          <h1 className="font-display text-xl font-bold uppercase tracking-[0.12em] text-slate-100">
+            {campaign.title} <span className="text-mango-500">/</span> {stage.title}
+          </h1>
+          <div className="mt-3 max-w-2xl">
+            <StageRail stages={campaign.stages} activeIndex={stageIndex} />
+          </div>
+        </div>
+        <BriefingReplayButton onReplay={() => setReplayBriefing(true)} />
       </header>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[3fr_1.4fr]">
+      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[3fr_1.35fr]">
         <div className="flex min-h-0 flex-col gap-4">
           {hasLogExplorer && (
-            <div className="min-h-[28rem] flex-1">
+            <Panel className="min-h-[26rem] flex-1 overflow-hidden p-3">
               <LogExplorer
                 key={stage.id}
                 events={arrivedEvents}
@@ -134,7 +154,7 @@ export default function MissionPage() {
                 onPin={pinEvent}
                 onUnpin={unpinEvent}
               />
-            </div>
+            </Panel>
           )}
 
           {showTerminal && (
@@ -147,7 +167,7 @@ export default function MissionPage() {
         </div>
 
         <aside className="flex min-h-0 flex-col gap-4">
-          <div className="rounded border border-mango-500/20 bg-orchard-900/40 p-3">
+          <Panel className="p-3">
             {hasAttackMap ? (
               <AttackMap nodes={campaign.attackMap ?? []} facts={collectedFacts} />
             ) : (
@@ -157,9 +177,18 @@ export default function MissionPage() {
                 status={clusterStatus}
               />
             )}
-          </div>
+          </Panel>
 
-          <div className="min-h-0 flex-1 rounded border border-mango-500/20 bg-orchard-900/40 p-3">
+          <Panel className="min-h-0 flex-1 overflow-y-auto p-4">
+            {stage.objectiveSteps && (
+              <div className="mb-5">
+                <ObjectiveProgress
+                  steps={stage.objectiveSteps}
+                  facts={collectedFacts}
+                  decisions={decisions}
+                />
+              </div>
+            )}
             {hasLogExplorer ? (
               <CaseFile
                 objective={stage.objective}
@@ -169,13 +198,21 @@ export default function MissionPage() {
               />
             ) : (
               <div>
-                <h2 className="text-[10px] uppercase tracking-widest text-mango-500">Objective</h2>
-                <p className="text-sm leading-relaxed text-mango-100">{stage.objective}</p>
+                <h2 className="font-mono text-[10px] uppercase tracking-[0.18em] text-mango-300">Objective</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-100">{stage.objective}</p>
               </div>
             )}
-          </div>
+          </Panel>
         </aside>
       </div>
     </main>
+  );
+}
+
+export default function MissionPage() {
+  return (
+    <DesktopGate>
+      <MissionExperience />
+    </DesktopGate>
   );
 }

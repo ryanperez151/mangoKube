@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useSimStore, useHasHydrated } from '@/engine/store';
 import { chapter1Campaigns } from '@/content/chapter1';
 import { DebriefPanel } from '@/components/DebriefPanel/DebriefPanel';
+import { AppFrame, DesktopGate } from '@/components/Cinematic/Cinematic';
 
-export default function DebriefPage() {
+function DebriefExperience() {
   const router = useRouter();
   const campaignId = useSimStore((state) => state.campaignId);
   const campaign = useSimStore((state) => state.campaign);
@@ -31,7 +32,7 @@ export default function DebriefPage() {
   }, [hasHydrated, campaignId, campaign, hydrateCampaign]);
 
   if (!hasHydrated || !campaignId || !campaign) {
-    return null;
+    return <AppFrame message="Reconstructing operation debrief" />;
   }
 
   function handleRestart() {
@@ -40,12 +41,22 @@ export default function DebriefPage() {
   }
 
   return (
-    <DebriefPanel
-      narrative={campaign.debrief.narrative}
-      lesson={campaign.debrief.lesson}
-      detection={campaign.debrief.detection}
-      nextChapterTeaser={campaign.debrief.nextChapterTeaser}
-      onRestart={handleRestart}
-    />
+    <main className="app-shell overflow-y-auto py-8">
+      <DebriefPanel
+        narrative={campaign.debrief.narrative}
+        lesson={campaign.debrief.lesson}
+        detection={campaign.debrief.detection}
+        nextChapterTeaser={campaign.debrief.nextChapterTeaser}
+        onRestart={handleRestart}
+      />
+    </main>
+  );
+}
+
+export default function DebriefPage() {
+  return (
+    <DesktopGate>
+      <DebriefExperience />
+    </DesktopGate>
   );
 }

@@ -1,0 +1,44 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { useSimStore } from '@/engine/store';
+import CampaignSelectPage from './page';
+
+const push = vi.fn();
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push }),
+}));
+
+beforeEach(() => {
+  push.mockReset();
+  useSimStore.getState().resetProgress();
+  localStorage.clear();
+});
+
+describe('CampaignSelectPage', () => {
+  it('presents two complete five-stage role dossiers', () => {
+    render(<CampaignSelectPage />);
+
+    const dossiers = screen.getAllByRole('article');
+    expect(dossiers).toHaveLength(2);
+
+    expect(within(dossiers[0]).getByText(/Kubernetes foothold/i)).toBeInTheDocument();
+    expect(within(dossiers[0]).getByText(/fact-gated terminal actions/i)).toBeInTheDocument();
+    expect(within(dossiers[0]).getByText(/excessive RBAC/i)).toBeInTheDocument();
+    expect(within(dossiers[0]).getAllByRole('listitem')).toHaveLength(5);
+
+    expect(within(dossiers[1]).getByText(/incident commander/i)).toBeInTheDocument();
+    expect(within(dossiers[1]).getByText(/SIEM evidence/i)).toBeInTheDocument();
+    expect(within(dossiers[1]).getByText(/Least-privilege RBAC/i)).toBeInTheDocument();
+    expect(within(dossiers[1]).getAllByRole('listitem')).toHaveLength(5);
+  });
+
+  it('starts the selected campaign and enters the mission', () => {
+    render(<CampaignSelectPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: /deploy as the sentinel/i }));
+
+    expect(useSimStore.getState().campaignId).toBe('sentinel');
+    expect(push).toHaveBeenCalledWith('/mission');
+  });
+});

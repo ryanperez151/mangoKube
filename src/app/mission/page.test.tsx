@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import { useSimStore } from '@/engine/store';
 import { chapter1Campaigns } from '@/content/chapter1';
 import MissionPage from './page';
@@ -14,6 +14,28 @@ beforeEach(() => {
 });
 
 describe('MissionPage — Infiltrator', () => {
+  it('marks the current standalone briefing seen before entering the workspace', () => {
+    useSimStore.getState().startCampaign(chapter1Campaigns.infiltrator);
+    render(<MissionPage />);
+
+    expect(screen.getByRole('main', { name: /operation briefing/i })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+
+    expect(useSimStore.getState().seenBriefingIds).toContain('recon');
+    expect(screen.getByLabelText('terminal input')).toBeInTheDocument();
+  });
+
+  it('can replay an already-seen briefing from the workspace', () => {
+    useSimStore.getState().startCampaign(chapter1Campaigns.infiltrator);
+    useSimStore.getState().markBriefingSeen('recon');
+    render(<MissionPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: /replay briefing/i }));
+
+    expect(screen.getByRole('main', { name: /operation briefing/i })).toBeInTheDocument();
+  });
+
   it('shows the stage briefing first, then the terminal after dismissal', () => {
     useSimStore.getState().startCampaign(chapter1Campaigns.infiltrator);
     render(<MissionPage />);
@@ -130,5 +152,64 @@ describe('MissionPage — Sentinel', () => {
     render(<MissionPage />);
     fireEvent.click(screen.getByText('Begin'));
     expect(screen.getByLabelText('terminal input')).toBeInTheDocument();
+  });
+
+  it('locks a stage decision to a valid option and focuses its consequence', () => {
+    act(() => {
+      useSimStore.setState({ stageIndex: 2, pendingStageResolution: null });
+      useSimStore.getState().markBriefingSeen('scope');
+    });
+    render(<MissionPage />);
+
+    expect(screen.queryByRole('button', { name: /continue/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /hunt persistence/i }));
+
+    expect(useSimStore.getState().decisions).toEqual({ 'containment-timing': 'hunt-first' });
+    const consequence = screen.getByRole('status');
+    expect(consequence).toHaveTextContent(/preserve the entry path/i);
+    expect(document.activeElement).toBe(consequence);
+  });
+
+  it('continues a pending resolution, resolves conditional copy, and focuses the next scene', async () => {
+    act(() => {
+      useSimStore.setState({
+        stageIndex: 2,
+        decisions: { 'containment-timing': 'hunt-first' },
+        pendingStageResolution: { stageId: 'scope' },
+      });
+    });
+    render(<MissionPage />);
+
+    expect(screen.getByText(/hold the primary binding/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /continue operation/i }));
+
+    expect(useSimStore.getState().stageIndex).toBe(3);
+    await waitFor(() => {
+      expect(document.activeElement).toBe(
+        screen.getByRole('heading', { name: 'Hunt Persistence' })
+      );
+    });
+  });
+
+  it('renders the briefing without entrance motion when reduced motion is preferred', () => {
+    vi.spyOn(window, 'matchMedia').mockImplementation(
+      (query) =>
+        ({
+          matches: query === '(min-width: 1024px)' || query === '(prefers-reduced-motion: reduce)',
+          media: query,
+          onchange: null,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+          dispatchEvent: vi.fn(),
+        }) as MediaQueryList
+    );
+    render(<MissionPage />);
+
+    expect(screen.getByRole('main', { name: /operation briefing/i })).toHaveAttribute(
+      'data-motion',
+      'reduced'
+    );
   });
 });
