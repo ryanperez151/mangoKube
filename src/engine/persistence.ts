@@ -211,6 +211,14 @@ export function normalizePersistedProgress(value: unknown): {
   if (!Array.isArray(source.revealedEdgeIds) || revealedEdgeIds.length !== source.revealedEdgeIds.length) recovered = true;
   if (!Array.isArray(source.terminalHistory) || terminalHistory.length !== source.terminalHistory.length) recovered = true;
 
+  const pending = asRecord(source.pendingStageResolution);
+  const activeStageId = campaign.stages[stageIndex]?.id;
+  const pendingStageResolution =
+    typeof pending.stageId === 'string' && pending.stageId === activeStageId
+      ? { stageId: pending.stageId }
+      : null;
+  if (source.pendingStageResolution != null && pendingStageResolution === null) recovered = true;
+
   const rawDecisions = asRecord(source.decisions);
   const decisions: Record<string, string> = {};
   campaign.stages.forEach((stage, decisionStageIndex) => {
@@ -218,11 +226,15 @@ export function normalizePersistedProgress(value: unknown): {
     const selected = rawDecisions[stage.decision.id];
     const option = stage.decision.options.find((candidate) => candidate.id === selected);
     if (option) decisions[stage.decision.id] = option.id;
-    else if (stageIndex > decisionStageIndex) {
+    const pendingCrossedBeforeStageDecision =
+      stageIndex === decisionStageIndex &&
+      stage.decision.timing === 'before-stage' &&
+      pendingStageResolution?.stageId === stage.id;
+    if (!option && (stageIndex > decisionStageIndex || pendingCrossedBeforeStageDecision)) {
       const defaultOptionId = safeDecisionDefault(campaignId, stage.decision.id);
       if (defaultOptionId) decisions[stage.decision.id] = defaultOptionId;
       recovered = true;
-    } else if (selected !== undefined) recovered = true;
+    } else if (!option && selected !== undefined) recovered = true;
   });
   if (Object.keys(rawDecisions).some((id) => !campaign.stages.some((stage) => stage.decision?.id === id))) recovered = true;
 
@@ -240,14 +252,6 @@ export function normalizePersistedProgress(value: unknown): {
       failedAttemptsByStage[stageId] = Math.trunc(attempts);
     } else recovered = true;
   });
-
-  const pending = asRecord(source.pendingStageResolution);
-  const activeStageId = campaign.stages[stageIndex]?.id;
-  const pendingStageResolution =
-    typeof pending.stageId === 'string' && pending.stageId === activeStageId
-      ? { stageId: pending.stageId }
-      : null;
-  if (source.pendingStageResolution != null && pendingStageResolution === null) recovered = true;
 
   const clusterStatuses: ClusterStatus[] = ['nominal', 'suspicious', 'compromised', 'contained'];
   const clusterStatus = clusterStatuses.includes(source.clusterStatus as ClusterStatus)

@@ -2,7 +2,7 @@ import { createElement } from 'react';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { useSimStore, useHasHydrated } from './store';
-import { getPersistenceStatus, initialPersistedProgress } from './persistence';
+import { getPersistenceStatus, initialPersistedProgress, normalizePersistedProgress } from './persistence';
 import { infiltratorCampaign } from '@/content/chapter1/infiltrator';
 import { sentinelCampaign } from '@/content/chapter1/sentinel';
 import type { Campaign } from '@/content/types';
@@ -421,6 +421,60 @@ describe('campaign progression contracts', () => {
 });
 
 describe('persist migration', () => {
+  it.each([
+    ['a missing selection', {}],
+    ['an invalid selection', { 'operational-order': 'not-an-option' }],
+  ] as const)(
+    'defaults %s when pending Escalation proves the before-stage decision was crossed',
+    (_label, decisions) => {
+      const normalized = normalizePersistedProgress({
+        ...initialPersistedProgress,
+        campaignId: 'infiltrator',
+        stageIndex: 3,
+        decisions,
+        pendingStageResolution: { stageId: 'escalation' },
+      });
+
+      expect(normalized.progress.decisions).toEqual({ 'operational-order': 'exfil-first' });
+      expect(normalized.progress.pendingStageResolution).toEqual({ stageId: 'escalation' });
+      expect(normalized.issue).toBe('recovered');
+    }
+  );
+
+  it('keeps the current before-stage decision open when no resolution is pending', () => {
+    const normalized = normalizePersistedProgress({
+      ...initialPersistedProgress,
+      campaignId: 'infiltrator',
+      stageIndex: 3,
+      decisions: { 'operational-order': 'not-an-option' },
+    });
+
+    expect(normalized.progress.decisions).toEqual({});
+    expect(normalized.progress.pendingStageResolution).toBeNull();
+    expect(normalized.issue).toBe('recovered');
+  });
+
+  it('rehydrates pending Escalation with a playable explicit route default', async () => {
+    localStorage.setItem(
+      'operation-mango-progress',
+      JSON.stringify({
+        state: {
+          ...initialPersistedProgress,
+          campaignId: 'infiltrator',
+          stageIndex: 3,
+          pendingStageResolution: { stageId: 'escalation' },
+        },
+        version: 2,
+      })
+    );
+
+    await useSimStore.persist.rehydrate();
+
+    expect(useSimStore.getState().decisions).toEqual({ 'operational-order': 'exfil-first' });
+    expect(useSimStore.getState().pendingStageResolution).toEqual({ stageId: 'escalation' });
+    expect(getPersistenceStatus().kind).toBe('recovered');
+  });
+
   it('treats an absent storage key as a clean no-save', async () => {
     expect(localStorage.getItem('operation-mango-progress')).toBeNull();
 

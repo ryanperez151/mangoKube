@@ -10,7 +10,7 @@ import {
 } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSimStore, useHasHydrated } from '@/engine/store';
-import { isChoiceVisible } from '@/engine/conditions';
+import { canChooseDecision, isChoiceVisible } from '@/engine/conditions';
 import { chapter1Campaigns } from '@/content/chapter1';
 import type { GuidanceStep, LogEvent, ObjectiveStep, Stage } from '@/content/types';
 import { Terminal } from '@/components/Terminal/Terminal';
@@ -314,22 +314,26 @@ function MissionExperience() {
   const unresolvedDecision = stage?.decision && !decisions[stage.decision.id]
     ? stage.decision
     : undefined;
-  const decisionBeforeStage = unresolvedDecision?.timing === 'before-stage';
-  const decisionAfterStage = unresolvedDecision?.timing === 'after-stage' && Boolean(pendingStageResolution);
+  const decisionIsActionable = canChooseDecision(
+    unresolvedDecision,
+    stage?.id,
+    pendingStageResolution,
+    decisions
+  );
 
   useEffect(() => {
     if (!campaign || !stage || pendingStageResolution || replayBriefing) return;
-    if (decisionBeforeStage || !seenBriefingIds.includes(stage.id)) return;
+    if (decisionIsActionable || !seenBriefingIds.includes(stage.id)) return;
     queueMicrotask(() => {
       if (document.activeElement === document.body) workspaceHeadingRef.current?.focus();
     });
-  }, [campaign, stage, pendingStageResolution, replayBriefing, decisionBeforeStage, seenBriefingIds]);
+  }, [campaign, stage, pendingStageResolution, replayBriefing, decisionIsActionable, seenBriefingIds]);
 
   if (!hasHydrated || !campaignId || !campaign || !stage) {
     return <AppFrame message="Loading active operation" />;
   }
 
-  if (decisionBeforeStage || decisionAfterStage) {
+  if (decisionIsActionable) {
     return <DecisionScene onSelected={() => setDecisionJustResolved(true)} />;
   }
   if (pendingStageResolution) return <StageResolutionScene />;

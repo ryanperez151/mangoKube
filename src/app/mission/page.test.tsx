@@ -68,6 +68,23 @@ describe('MissionPage mode order', () => {
     expect(screen.queryByRole('main', { name: /mission workspace/i })).not.toBeInTheDocument();
   });
 
+  it('surfaces a malformed pending before-stage state as its resolution instead of inert decision actions', () => {
+    useSimStore.getState().startCampaign(chapter1Campaigns.infiltrator);
+    act(() => {
+      useSimStore.setState({
+        stageIndex: 3,
+        decisions: {},
+        pendingStageResolution: { stageId: 'escalation' },
+      });
+    });
+    render(<MissionPage />);
+
+    expect(screen.getByRole('main', { name: /stage resolution/i })).toBeInTheDocument();
+    expect(screen.queryByRole('main', { name: /mission decision/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /continue operation/i }));
+    expect(useSimStore.getState().stageIndex).toBe(4);
+  });
+
   it('collects the Sentinel choice after Scope completion, then resolves and briefs the consequence', () => {
     useSimStore.getState().startCampaign(chapter1Campaigns.sentinel);
     act(() => {

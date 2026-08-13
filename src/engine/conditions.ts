@@ -1,4 +1,20 @@
-import type { ChoiceCondition, ConditionalCopy } from '@/content/types';
+import type {
+  ChoiceCondition,
+  ConditionalCopy,
+  MissionDecision,
+  PendingStageResolution,
+} from '@/content/types';
+
+export function canChooseDecision(
+  decision: MissionDecision | undefined,
+  stageId: string | undefined,
+  pendingStageResolution: PendingStageResolution | null,
+  decisions: Readonly<Record<string, string>>
+): boolean {
+  if (!decision || !stageId || decisions[decision.id]) return false;
+  if (decision.timing === 'before-stage') return pendingStageResolution === null;
+  return pendingStageResolution?.stageId === stageId;
+}
 
 /**
  * Conditions are intentionally data-only so content and engine callers can

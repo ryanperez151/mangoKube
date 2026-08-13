@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { parseCommand } from './terminalParser';
-import { isChoiceVisible } from './conditions';
+import { canChooseDecision, isChoiceVisible } from './conditions';
 import { chapter1Campaigns } from '@/content/chapter1';
 import {
   clearRecoverablePersistenceIssue,
@@ -257,9 +257,7 @@ export const useSimStore = create<SimState>()(
           const stage = state.campaign?.stages[state.stageIndex];
           const decision = stage?.decision;
           if (decision?.id !== decisionId) return;
-          if (state.decisions[decisionId]) return;
-          const stageIsPending = state.pendingStageResolution?.stageId === stage?.id;
-          if (decision.timing === 'before-stage' ? stageIsPending : !stageIsPending) return;
+          if (!canChooseDecision(decision, stage?.id, state.pendingStageResolution, state.decisions)) return;
           const option = decision?.options.find((candidate) => candidate.id === optionId);
           if (!decision || !option) return;
 
