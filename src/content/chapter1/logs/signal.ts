@@ -156,6 +156,7 @@ export const signalEvents: LogEvent[] = [
     },
     arrivesAtStage: 3,
     revealsFact: 'evidence-rogue-sa',
+    visibleWhen: { 'containment-timing': 'hunt-first' },
     analystNote:
       'A new service account in kube-system, named to look like routine maintenance. Nothing in MangoCorp created this.',
   },
@@ -175,7 +176,48 @@ export const signalEvents: LogEvent[] = [
     },
     arrivesAtStage: 3,
     revealsFact: 'evidence-rogue-binding',
+    visibleWhen: { 'containment-timing': 'hunt-first' },
     analystNote:
       'A second path to cluster-admin, independent of ci-deploy-bot. Revoking only the first binding would have left this one untouched.',
+  },
+  {
+    id: 'sig-rogue-sa-pivot',
+    timestamp: '2026-08-12T02:31:07Z',
+    source: 'k8s-audit',
+    message: 'create serviceaccounts/metrics-reconciler',
+    fields: {
+      user: 'external-operator@203.0.113.44',
+      verb: 'create',
+      resource: 'serviceaccounts',
+      object: 'metrics-reconciler',
+      namespace: 'kube-system',
+      sourceIP: '203.0.113.44',
+      responseCode: '201',
+    },
+    arrivesAtStage: 3,
+    revealsFact: 'evidence-rogue-sa',
+    visibleWhen: { 'containment-timing': 'contain-now' },
+    analystNote:
+      'Minutes after ci-deploy-bot loses cluster-admin, an external session uses credentials captured before the revoke to create a new kube-system account. The attacker reacted to containment.',
+  },
+  {
+    id: 'sig-rogue-binding-pivot',
+    timestamp: '2026-08-12T02:31:22Z',
+    source: 'k8s-audit',
+    message: 'create clusterrolebindings/metrics-reconciler-admin',
+    fields: {
+      user: 'external-operator@203.0.113.44',
+      verb: 'create',
+      resource: 'clusterrolebindings',
+      object: 'metrics-reconciler-admin',
+      role: 'cluster-admin',
+      sourceIP: '203.0.113.44',
+      responseCode: '201',
+    },
+    arrivesAtStage: 3,
+    revealsFact: 'evidence-rogue-binding',
+    visibleWhen: { 'containment-timing': 'contain-now' },
+    analystNote:
+      'The external session immediately binds the pivot identity to cluster-admin. Fast containment changed the name of persistence, not the need to hunt it.',
   },
 ];

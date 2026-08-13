@@ -116,6 +116,7 @@ describe('MissionPage — Sentinel', () => {
       useSimStore.getState().pinEvent('sig-binding-in-effect');
       useSimStore.getState().pinEvent('sig-binding-origin');
       useSimStore.getState().continueFromResolution();
+      useSimStore.getState().chooseDecision('containment-timing', 'hunt-first');
       useSimStore.getState().pinEvent('sig-secret-read');
       useSimStore.getState().pinEvent('sig-exfil-egress');
       useSimStore.getState().continueFromResolution();

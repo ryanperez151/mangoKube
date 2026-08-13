@@ -28,6 +28,12 @@ describe('sentinelAttackMap', () => {
     }
   });
 
+  it('describes persistence without naming one decision-route identity', () => {
+    const persistence = sentinelAttackMap.find((node) => node.id === 'persistence')!;
+    expect(persistence.summary).not.toContain('log-rotator');
+    expect(persistence.summary).not.toContain('metrics-reconciler');
+  });
+
   it('references only facts that exist in the campaign fact library', () => {
     for (const node of sentinelAttackMap) {
       const referenced = [
