@@ -2,7 +2,9 @@ import { createElement } from 'react';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { useSimStore, useHasHydrated } from './store';
+import { getPersistenceStatus, initialPersistedProgress } from './persistence';
 import { infiltratorCampaign } from '@/content/chapter1/infiltrator';
+import { sentinelCampaign } from '@/content/chapter1/sentinel';
 import type { Campaign } from '@/content/types';
 
 const testCampaign: Campaign = {
@@ -409,7 +411,8 @@ describe('persist migration', () => {
   });
 
   it.each([
-    ['sentinel', 3, {}],
+    ['sentinel', 2, {}],
+    ['sentinel', 3, { 'containment-timing': 'contain-now' }],
     ['sentinel', 4, { 'containment-timing': 'hunt-first' }],
     ['infiltrator', 3, {}],
     ['infiltrator', 4, { 'operational-order': 'exfil-first' }],
@@ -426,6 +429,99 @@ describe('persist migration', () => {
       expect(useSimStore.getState().decisions).toEqual(expectedDecisions);
     }
   );
+
+  it('normalizes recoverable known progress instead of hydrating unsafe values', async () => {
+    localStorage.setItem(
+      'operation-mango-progress',
+      JSON.stringify({
+        state: {
+          campaignId: 'sentinel',
+          stageIndex: 999,
+          collectedFacts: ['evidence-interactive-shell', 'not-a-fact'],
+          revealedFacts: 'not-an-array',
+          decisions: { 'containment-timing': 'not-an-option', unknown: 'value' },
+          pendingStageResolution: { stageId: 'not-a-stage' },
+        },
+        version: 2,
+      })
+    );
+
+    await useSimStore.persist.rehydrate();
+
+    const state = useSimStore.getState();
+    expect(state.campaignId).toBe('sentinel');
+    expect(state.stageIndex).toBe(sentinelCampaign.stages.length);
+    expect(state.collectedFacts).toEqual(['evidence-interactive-shell']);
+    expect(state.revealedFacts).toEqual([]);
+    expect(state.decisions).toEqual({ 'containment-timing': 'contain-now' });
+    expect(state.pendingStageResolution).toBeNull();
+  });
+
+  it('repairs an invalid decision after its stage so the resumed route remains playable', async () => {
+    localStorage.setItem(
+      'operation-mango-progress',
+      JSON.stringify({
+        state: {
+          campaignId: 'sentinel',
+          stageIndex: 4,
+          decisions: { 'containment-timing': 'not-an-option' },
+        },
+        version: 2,
+      })
+    );
+
+    await useSimStore.persist.rehydrate();
+
+    expect(useSimStore.getState().decisions).toEqual({ 'containment-timing': 'contain-now' });
+  });
+
+  it('reports recovery when malformed history and diagram ids are removed', async () => {
+    localStorage.setItem(
+      'operation-mango-progress',
+      JSON.stringify({
+        state: {
+          ...initialPersistedProgress,
+          campaignId: 'infiltrator',
+          terminalHistory: [{ input: 42, output: ['invalid'] }],
+          highlightedNodeIds: ['ci-deploy-bot', 'unknown-node'],
+          revealedEdgeIds: ['unknown-edge'],
+        },
+        version: 2,
+      })
+    );
+
+    await useSimStore.persist.rehydrate();
+
+    expect(useSimStore.getState().terminalHistory).toEqual([]);
+    expect(useSimStore.getState().highlightedNodeIds).toEqual(['ci-deploy-bot']);
+    expect(useSimStore.getState().revealedEdgeIds).toEqual([]);
+    expect(getPersistenceStatus().kind).toBe('recovered');
+  });
+
+  it('discards an incompatible campaign id without throwing', async () => {
+    localStorage.setItem(
+      'operation-mango-progress',
+      JSON.stringify({ state: { campaignId: 'unknown-role', stageIndex: 2 }, version: 2 })
+    );
+
+    await expect(useSimStore.persist.rehydrate()).resolves.not.toThrow();
+    expect(useSimStore.getState().campaignId).toBeNull();
+    expect(useSimStore.getState().stageIndex).toBe(0);
+  });
+
+  it('continues in memory when persist writes are unavailable', () => {
+    const setItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = () => {
+      throw new DOMException('denied', 'SecurityError');
+    };
+
+    try {
+      expect(() => useSimStore.getState().startCampaign(testCampaign)).not.toThrow();
+      expect(useSimStore.getState().campaignId).toBe('infiltrator');
+    } finally {
+      Storage.prototype.setItem = setItem;
+    }
+  });
 });
 
 describe('advanceWhen cascade', () => {

@@ -184,7 +184,7 @@ export function StageRail({ stages, activeIndex }: { stages: readonly Stage[]; a
               'flex h-7 min-w-7 items-center justify-center border font-mono text-[10px]',
               index < activeIndex && 'border-leaf-500/50 bg-leaf-500/10 text-leaf-300',
               index === activeIndex && 'border-mango-500 bg-mango-500/15 text-mango-300',
-              index > activeIndex && 'border-white/10 text-slate-600'
+              index > activeIndex && 'border-white/10 text-slate-400'
             )}
           >
             {index + 1}
@@ -310,7 +310,7 @@ export function SceneShell({
       <section className="relative z-10 w-full max-w-4xl">
         <div className="mb-6 flex items-center justify-between border-b border-white/10 pb-4">
           <BrandMark compact />
-          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-slate-500">{eyebrow}</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-slate-400">{eyebrow}</span>
         </div>
         <Panel className="relative overflow-hidden p-8 lg:p-12">
           <div aria-hidden="true" className="absolute inset-y-0 left-0 w-1 bg-white/20" />

@@ -24,7 +24,7 @@ function formatTime(timestamp: string): string {
 export function ResultsTable({ events, selectedId, pinnedIds, onSelect }: ResultsTableProps) {
   if (events.length === 0) {
     return (
-      <p data-testid="empty-results" className="p-6 text-center font-mono text-xs text-mango-300/50">
+      <p data-testid="empty-results" className="p-6 text-center font-mono text-xs text-mango-300/80">
         No events match this search in this time range.
         <br />
         Try removing a filter, or widening the time range.
@@ -35,7 +35,7 @@ export function ResultsTable({ events, selectedId, pinnedIds, onSelect }: Result
   return (
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-left font-mono text-xs">
-        <thead className="sticky top-0 bg-orchard-900/95 text-mango-300/50">
+        <thead className="sticky top-0 bg-orchard-900/95 text-mango-300/80">
           <tr>
             <th scope="col" className="px-3 py-2 font-normal">
               Time
@@ -64,7 +64,7 @@ export function ResultsTable({ events, selectedId, pinnedIds, onSelect }: Result
                   !isSelected && isPinned && 'bg-leaf-500/10'
                 )}
               >
-                <td className="whitespace-nowrap px-3 py-1.5 text-mango-300/60">
+                <td className="whitespace-nowrap px-3 py-1.5 text-mango-300/80">
                   {formatTime(event.timestamp)}
                 </td>
                 <td className={cn('whitespace-nowrap px-3 py-1.5', SOURCE_LABEL_CLASS[event.source])}>

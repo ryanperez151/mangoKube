@@ -30,6 +30,7 @@ import {
   TabButton,
 } from '@/components/Cinematic/Cinematic';
 import { BriefingScene, DecisionScene, StageResolutionScene } from '@/components/Cinematic/Scenes';
+import { PersistenceStatusNotice } from '@/components/PersistenceStatus/PersistenceStatus';
 
 type ContextTab = 'evidence' | 'attack-path' | 'objectives' | 'cluster';
 type InputTarget = 'search' | 'terminal';
@@ -63,13 +64,13 @@ function ObjectiveList({
           <li key={step.id} className="flex gap-3 border-b border-white/[0.06] pb-3">
             <span
               aria-hidden="true"
-              className={complete ? 'text-leaf-300' : 'text-slate-600'}
+              className={complete ? 'text-leaf-300' : 'text-slate-400'}
             >
               {complete ? '✓' : '○'}
             </span>
             <div>
               <p className={complete ? 'text-leaf-300' : 'text-slate-200'}>{step.label}</p>
-              {step.detail && <p className="mt-1 text-xs leading-5 text-slate-500">{step.detail}</p>}
+              {step.detail && <p className="mt-1 text-xs leading-5 text-slate-400">{step.detail}</p>}
             </div>
           </li>
         );
@@ -149,7 +150,7 @@ function MissionHelp({
       >
         <div className="flex items-center justify-between gap-4 border-b border-white/10 pb-4">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-slate-500">
+            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-slate-400">
               Guidance tier {level}
             </p>
             <h2 id="mission-help-title" className="mt-1 font-display text-2xl font-bold uppercase tracking-[0.08em] text-slate-100">
@@ -403,7 +404,7 @@ function MissionExperience() {
       <div ref={workspaceContentRef} data-testid="workspace-content" className="mx-auto flex h-full min-h-0 max-w-[1600px] flex-col gap-3">
         <header className="grid shrink-0 grid-cols-[minmax(0,1fr)_minmax(18rem,0.8fr)_auto] items-center gap-5 border-b border-white/10 pb-3">
           <div className="min-w-0">
-            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-slate-500">
+            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-slate-400">
               <span>{roleLabel(campaignId)}</span>
               <span> · Stage {stageIndex + 1} of {campaign.stages.length}</span>
             </p>
@@ -495,7 +496,7 @@ function MissionExperience() {
               {contextTab === 'evidence' && (
                 <div className="space-y-6">
                   <section aria-label="Selected event">
-                    <h2 className="mb-2 font-mono text-[10px] uppercase tracking-[0.18em] text-slate-500">Selected event</h2>
+                    <h2 className="mb-2 font-mono text-[10px] uppercase tracking-[0.18em] text-slate-400">Selected event</h2>
                     <div className="border border-white/10 bg-black/25">
                       <EventDetail
                         event={selectedEvent}
@@ -568,7 +569,12 @@ function MissionExperience() {
 export default function MissionPage() {
   return (
     <DesktopGate>
-      <MissionExperience />
+      <div className="app-shell flex min-h-0 flex-col bg-scene-ink">
+        <PersistenceStatusNotice placement="inline" className="mx-4 mt-2" />
+        <div className="status-page-content min-h-0 flex-1">
+          <MissionExperience />
+        </div>
+      </div>
     </DesktopGate>
   );
 }

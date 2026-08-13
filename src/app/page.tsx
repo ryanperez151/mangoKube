@@ -11,6 +11,7 @@ import {
   Panel,
   StatusBadge,
 } from '@/components/Cinematic/Cinematic';
+import { PersistenceStatusNotice } from '@/components/PersistenceStatus/PersistenceStatus';
 
 function LandingExperience() {
   const router = useRouter();
@@ -39,6 +40,7 @@ function LandingExperience() {
 
   return (
     <main className="app-shell scene-atmosphere overflow-y-auto px-10 py-8">
+      <PersistenceStatusNotice placement="inline" className="mb-4" />
       <div className="relative z-10 mx-auto flex min-h-full max-w-7xl flex-col">
         <header className="flex items-center justify-between border-b border-white/10 pb-5">
           <BrandMark />
@@ -63,7 +65,7 @@ function LandingExperience() {
 
           <Panel className="p-7">
             <div className="border-b border-white/10 pb-5">
-              <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-slate-500">
+              <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-slate-400">
                 Operation state
               </p>
               <h2 className="mt-2 font-display text-3xl font-bold uppercase tracking-[0.08em] text-slate-100">
@@ -90,7 +92,7 @@ function LandingExperience() {
           </Panel>
         </div>
 
-        <footer className="flex items-center justify-between border-t border-white/10 py-4 font-mono text-[10px] uppercase tracking-[0.16em] text-slate-600">
+        <footer className="flex items-center justify-between border-t border-white/10 py-4 font-mono text-[10px] uppercase tracking-[0.16em] text-slate-400">
           <span>Focused Scene A1</span>
           <span>Keyboard operational</span>
         </footer>

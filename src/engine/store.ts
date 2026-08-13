@@ -1,8 +1,15 @@
 import { useState, useEffect } from 'react';
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import { parseCommand } from './terminalParser';
 import { isChoiceVisible } from './conditions';
+import {
+  clearRecoverablePersistenceIssue,
+  initialPersistedProgress,
+  normalizePersistedProgress,
+  reportNormalization,
+  resilientStorage,
+} from './persistence';
 import type {
   Campaign,
   CampaignId,
@@ -70,23 +77,7 @@ interface SimState {
   resetProgress: () => void;
 }
 
-const initialTransientState = {
-  stageIndex: 0,
-  revealedFacts: [] as string[],
-  collectedFacts: [] as string[],
-  terminalHistory: [] as TerminalEntry[],
-  clusterStatus: 'nominal' as ClusterStatus,
-  highlightedNodeIds: [] as string[],
-  revealedEdgeIds: [] as string[],
-  pinnedEvidence: [] as string[],
-  activeQuery: '',
-  timeRangeId: 'last-1h',
-  decisions: {} as Record<string, string>,
-  guidanceLevelByStage: {} as Record<string, GuidanceLevel>,
-  failedAttemptsByStage: {} as Record<string, number>,
-  seenBriefingIds: [] as string[],
-  pendingStageResolution: null as PendingStageResolution | null,
-};
+const { campaignId: _initialCampaignId, ...initialTransientState } = initialPersistedProgress;
 
 /**
  * The cluster-visual patch applied when a campaign starts on its first
@@ -316,11 +307,15 @@ export const useSimStore = create<SimState>()(
           });
         },
 
-        resetProgress: () => set({ campaign: null, campaignId: null, ...initialTransientState }),
+        resetProgress: () => {
+          clearRecoverablePersistenceIssue();
+          set({ campaign: null, campaignId: null, ...initialTransientState });
+        },
       };
     },
     {
       name: 'operation-mango-progress',
+      storage: createJSONStorage(() => resilientStorage),
       partialize: (state) => ({
         campaignId: state.campaignId,
         stageIndex: state.stageIndex,
@@ -340,6 +335,11 @@ export const useSimStore = create<SimState>()(
         pendingStageResolution: state.pendingStageResolution,
       }),
       version: 2,
+      merge: (persisted, current) => {
+        const normalized = normalizePersistedProgress(persisted);
+        reportNormalization(normalized.issue);
+        return { ...current, ...normalized.progress, campaign: null };
+      },
       migrate: (persisted, version): PersistedProgress => {
         // The Sentinel campaign was rewritten around log-evidence pinning:
         // every stage id and fact id changed, so a v0 save resumes into a
@@ -381,21 +381,15 @@ export const useSimStore = create<SimState>()(
 );
 
 export function useHasHydrated(): boolean {
-  // `persist` is only attached to the store API once its storage backend
-  // (localStorage) is successfully accessed. During `next build`'s static
-  // export prerendering (Node, no `window`/`localStorage`), that access
-  // throws and `useSimStore.persist` stays undefined — guard against that
-  // so the build doesn't crash; in a real browser this is always defined.
+  // Keep static export safe even if a future storage factory cannot attach
+  // the persist API during server rendering. Resilient browser storage keeps
+  // this available even when localStorage access itself is denied.
   const [hasHydrated, setHasHydrated] = useState(
     () => useSimStore.persist?.hasHydrated() ?? false
   );
 
   useEffect(() => {
-    // Same `?? false` fallback as the initializer above (this previously
-    // read `?? true`, an inconsistency with no functional effect in a real
-    // browser, where `.persist` is always defined by the time this effect
-    // runs — corrected for consistency, not because it was load-bearing
-    // for any observed bug).
+    // Match the initializer fallback and subscribe when hydration is active.
     setHasHydrated(useSimStore.persist?.hasHydrated() ?? false);
     const unsubscribe = useSimStore.persist?.onFinishHydration(() => setHasHydrated(true));
     return unsubscribe;

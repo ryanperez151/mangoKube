@@ -47,4 +47,17 @@ describe('CampaignSelectPage', () => {
     expect(useSimStore.getState().campaignId).toBe('sentinel');
     expect(push).toHaveBeenCalledWith('/mission');
   });
+
+  it('offers safe recovery when corrupt progress arrives directly on this route', async () => {
+    localStorage.setItem(
+      'operation-mango-progress',
+      JSON.stringify({ state: { campaignId: 'unknown-role', stageIndex: 2 }, version: 2 })
+    );
+    await useSimStore.persist.rehydrate();
+
+    render(<CampaignSelectPage />);
+
+    expect(screen.getByRole('status')).toHaveTextContent(/could not be read/i);
+    expect(screen.getByRole('button', { name: /reset progress/i })).toBeInTheDocument();
+  });
 });

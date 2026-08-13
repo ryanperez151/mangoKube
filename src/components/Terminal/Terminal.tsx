@@ -81,7 +81,7 @@ export function Terminal({ history, availableCommands, value, onChange, onSubmit
       className="flex h-full min-h-0 flex-col overflow-hidden border border-white/10 bg-black/55 font-mono text-sm"
       aria-label="Command console"
     >
-      <div className="border-b border-white/10 px-4 py-2 text-[10px] uppercase tracking-[0.18em] text-slate-500">
+      <div className="border-b border-white/10 px-4 py-2 text-[10px] uppercase tracking-[0.18em] text-slate-400">
         Command transcript
       </div>
       <div
@@ -90,7 +90,7 @@ export function Terminal({ history, availableCommands, value, onChange, onSubmit
         data-testid="terminal-history"
       >
         {history.length === 0 && (
-          <p className="text-xs leading-5 text-slate-500">Console ready. Type a command to begin.</p>
+          <p className="text-xs leading-5 text-slate-400">Console ready. Type a command to begin.</p>
         )}
         {history.map((entry, index) => (
           <div

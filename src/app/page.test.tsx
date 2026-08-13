@@ -81,4 +81,26 @@ describe('LandingPage', () => {
     expect(push).toHaveBeenCalledWith('/debrief');
     expect(screen.getByRole('button', { name: /new operation/i })).toBeInTheDocument();
   });
+
+  it('surfaces repaired persisted progress with a safe reset action', async () => {
+    localStorage.setItem(
+      'operation-mango-progress',
+      JSON.stringify({
+        state: {
+          campaignId: 'sentinel',
+          stageIndex: 999,
+          decisions: { 'containment-timing': 'invalid-option' },
+        },
+        version: 2,
+      })
+    );
+    await useSimStore.persist.rehydrate();
+
+    render(<LandingPage />);
+
+    expect(screen.getByRole('status')).toHaveTextContent(/saved progress was repaired/i);
+    fireEvent.click(screen.getByRole('button', { name: /reset progress/i }));
+    expect(useSimStore.getState().campaignId).toBeNull();
+    expect(push).toHaveBeenCalledWith('/campaign-select');
+  });
 });

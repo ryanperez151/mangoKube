@@ -45,7 +45,7 @@ export function SearchBar({ value, onChange, onSubmit, error, resultCount }: Sea
         </p>
       ) : (
         resultCount !== undefined && (
-          <p data-testid="result-count" className="font-mono text-xs text-mango-300/60">
+          <p data-testid="result-count" className="font-mono text-xs text-mango-300/80">
             {resultCount} events
           </p>
         )

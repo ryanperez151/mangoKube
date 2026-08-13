@@ -48,6 +48,10 @@ select,
   min-height: 0;
 }
 
+.status-page-content > .app-shell {
+  height: 100%;
+}
+
 .scene-atmosphere {
   position: relative;
   isolation: isolate;
