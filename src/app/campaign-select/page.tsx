@@ -26,11 +26,11 @@ function CampaignSelectExperience() {
       <div className="relative z-10 mx-auto max-w-7xl">
         <header className="flex items-center justify-between border-b border-white/10 pb-5">
           <BrandMark compact />
-          <StatusBadge tone="action">Role assignment</StatusBadge>
+          <StatusBadge>Role assignment</StatusBadge>
         </header>
 
         <section className="py-9">
-          <p className="font-mono text-xs uppercase tracking-[0.24em] text-mango-300">Select perspective</p>
+          <p className="font-mono text-xs uppercase tracking-[0.24em] text-slate-400">Select perspective</p>
           <h1 className="mt-3 font-display text-5xl font-bold uppercase tracking-[0.06em] text-slate-50">
             Choose your side
           </h1>
@@ -58,9 +58,7 @@ function CampaignSelectExperience() {
                         {campaign.title}
                       </h2>
                     </div>
-                    <StatusBadge tone={id === 'sentinel' ? 'established' : 'action'}>
-                      {id}
-                    </StatusBadge>
+                    <StatusBadge>{id}</StatusBadge>
                   </div>
                   <p className="mt-4 text-base leading-7 text-slate-300">{campaign.tagline}</p>
 

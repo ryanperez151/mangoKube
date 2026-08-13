@@ -21,6 +21,9 @@ describe('CampaignSelectPage', () => {
 
     const dossiers = screen.getAllByRole('article');
     expect(dossiers).toHaveLength(2);
+    const roleAssignment = screen.getByText('Role assignment');
+    expect(roleAssignment).toHaveClass('text-slate-400');
+    expect(roleAssignment.className).not.toMatch(/text-(mango|leaf)/);
 
     expect(within(dossiers[0]).getByText(/Kubernetes foothold/i)).toBeInTheDocument();
     expect(within(dossiers[0]).getByText(/fact-gated terminal actions/i)).toBeInTheDocument();
@@ -31,6 +34,9 @@ describe('CampaignSelectPage', () => {
     expect(within(dossiers[1]).getByText(/SIEM evidence/i)).toBeInTheDocument();
     expect(within(dossiers[1]).getByText(/Least-privilege RBAC/i)).toBeInTheDocument();
     expect(within(dossiers[1]).getAllByRole('listitem')).toHaveLength(5);
+    const sentinelIdentity = within(dossiers[1]).getByText('sentinel');
+    expect(sentinelIdentity).toHaveClass('text-slate-400');
+    expect(sentinelIdentity.className).not.toMatch(/text-(mango|leaf)/);
   });
 
   it('starts the selected campaign and enters the mission', () => {

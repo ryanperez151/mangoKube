@@ -56,8 +56,8 @@ export function BriefingScene({ onBegin }: { onBegin?: () => void }) {
             <p key={`${stage.id}-${index}`}>{line}</p>
           ))}
         </div>
-        <Panel className="self-start border-mango-500/25 bg-mango-500/[0.04] p-5">
-          <StatusBadge tone="action">Active objective</StatusBadge>
+        <Panel className="self-start bg-white/[0.025] p-5">
+          <StatusBadge>Active objective</StatusBadge>
           <p className="mt-4 text-base leading-7 text-slate-100">{stage.objective}</p>
         </Panel>
       </div>
@@ -195,7 +195,7 @@ export function StageResolutionScene() {
           <p key={`summary-${index}`}>{line}</p>
         ))}
         {conditional.map((line, index) => (
-          <p key={`conditional-${index}`} className="border-l-2 border-mango-500/50 pl-4 text-slate-100">
+          <p key={`conditional-${index}`} className="border-l-2 border-leaf-500/50 pl-4 text-slate-100">
             {line}
           </p>
         ))}

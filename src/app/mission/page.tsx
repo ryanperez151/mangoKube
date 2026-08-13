@@ -198,7 +198,7 @@ function MissionExperience() {
               />
             ) : (
               <div>
-                <h2 className="font-mono text-[10px] uppercase tracking-[0.18em] text-mango-300">Objective</h2>
+                <h2 className="font-mono text-[10px] uppercase tracking-[0.18em] text-slate-400">Objective</h2>
                 <p className="mt-2 text-sm leading-6 text-slate-100">{stage.objective}</p>
               </div>
             )}

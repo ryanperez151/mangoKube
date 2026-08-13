@@ -43,6 +43,11 @@ describe('LandingPage', () => {
   it('offers a new operation when there is no save', () => {
     render(<LandingPage />);
 
+    const passiveStatus = screen.getByText('Chapter 01 / Active');
+    expect(passiveStatus).toHaveClass('text-slate-400');
+    expect(passiveStatus.className).not.toMatch(/text-(mango|leaf)/);
+    expect(screen.getByText('Two truths.')).toHaveClass('text-slate-100');
+
     fireEvent.click(screen.getByRole('button', { name: /new operation/i }));
 
     expect(push).toHaveBeenCalledWith('/campaign-select');

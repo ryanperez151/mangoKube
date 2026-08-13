@@ -256,7 +256,10 @@ export function LiveFeedback({ children }: { children: ReactNode }) {
 }
 
 export function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(true);
+  const [reduced, setReduced] = useState(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return true;
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  });
 
   useEffect(() => {
     const query = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -304,7 +307,7 @@ export function SceneShell({
           <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-slate-500">{eyebrow}</span>
         </div>
         <Panel className="relative overflow-hidden p-8 lg:p-12">
-          <div aria-hidden="true" className="absolute inset-y-0 left-0 w-1 bg-mango-500" />
+          <div aria-hidden="true" className="absolute inset-y-0 left-0 w-1 bg-white/20" />
           <h1
             ref={headingRef}
             tabIndex={-1}

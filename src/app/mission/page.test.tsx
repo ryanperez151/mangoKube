@@ -20,6 +20,10 @@ describe('MissionPage — Infiltrator', () => {
 
     expect(screen.getByRole('main', { name: /operation briefing/i })).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    const objectiveLabel = screen.getByText('Active objective');
+    expect(objectiveLabel).toHaveClass('text-slate-400');
+    expect(objectiveLabel.className).not.toMatch(/text-(mango|leaf)/);
+    expect(objectiveLabel.parentElement?.className).not.toMatch(/(border|bg)-mango/);
     fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
 
     expect(useSimStore.getState().seenBriefingIds).toContain('recon');
