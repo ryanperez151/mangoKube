@@ -138,6 +138,7 @@ export function TabButton({ active, className, ...props }: ActionButtonProps & {
     <ActionButton
       role="tab"
       aria-selected={active}
+      tabIndex={active ? 0 : -1}
       variant="quiet"
       className={cn(
         'min-h-9 border-x-0 border-t-0 px-3 py-1 text-xs',
@@ -172,16 +173,21 @@ export function StageRail({ stages, activeIndex }: { stages: readonly Stage[]; a
         <div key={stage.id} className="flex min-w-0 flex-1 items-center gap-1">
           <span
             aria-current={index === activeIndex ? 'step' : undefined}
+            aria-label={
+              index < activeIndex
+                ? `Stage ${index + 1} complete`
+                : index === activeIndex
+                  ? `Stage ${index + 1} current: ${stage.title}`
+                  : `Stage ${index + 1} locked`
+            }
             className={cn(
               'flex h-7 min-w-7 items-center justify-center border font-mono text-[10px]',
               index < activeIndex && 'border-leaf-500/50 bg-leaf-500/10 text-leaf-300',
               index === activeIndex && 'border-mango-500 bg-mango-500/15 text-mango-300',
               index > activeIndex && 'border-white/10 text-slate-600'
             )}
-            title={stage.title}
           >
             {index + 1}
-            <span className="sr-only">: {stage.title}</span>
           </span>
           {index < stages.length - 1 && (
             <span className={cn('h-px flex-1', index < activeIndex ? 'bg-leaf-500/40' : 'bg-white/10')} />

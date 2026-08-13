@@ -4,7 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import type { Fact, LogEvent } from '@/content/types';
 
 interface CaseFileProps {
-  objective: string;
+  objective?: string;
   pinnedEvents: LogEvent[];
   facts: Fact[];
   onUnpin: (eventId: string) => void;
@@ -14,17 +14,19 @@ export function CaseFile({ objective, pinnedEvents, facts, onUnpin }: CaseFilePr
   const reduceMotion = useReducedMotion();
 
   return (
-    <section aria-label="case file" className="flex h-full flex-col gap-4 overflow-y-auto">
-      <div>
-        <h2 className="text-[10px] uppercase tracking-widest text-mango-500">Objective</h2>
-        <p data-testid="objective" className="text-sm leading-relaxed text-mango-100">
-          {objective}
-        </p>
-      </div>
+    <section aria-label="case file" className="flex flex-col gap-4">
+      {objective && (
+        <div>
+          <h2 className="text-[10px] uppercase tracking-widest text-slate-500">Objective</h2>
+          <p data-testid="objective" className="text-sm leading-relaxed text-slate-100">
+            {objective}
+          </p>
+        </div>
+      )}
 
       {facts.length > 0 && (
         <div>
-          <h2 className="mb-2 text-[10px] uppercase tracking-widest text-mango-500">Established</h2>
+          <h2 className="mb-2 text-[10px] uppercase tracking-widest text-slate-500">Established findings</h2>
           <ul className="space-y-2">
             {facts.map((fact) => (
               <li key={fact.id} className="border-l-2 border-leaf-500/60 pl-3">
@@ -37,7 +39,7 @@ export function CaseFile({ objective, pinnedEvents, facts, onUnpin }: CaseFilePr
       )}
 
       <div>
-        <h2 className="mb-2 text-[10px] uppercase tracking-widest text-mango-500">
+        <h2 className="mb-2 text-[10px] uppercase tracking-widest text-slate-500">
           Pinned evidence
         </h2>
         {pinnedEvents.length === 0 ? (

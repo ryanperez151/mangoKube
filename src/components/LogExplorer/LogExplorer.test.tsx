@@ -43,10 +43,13 @@ function renderExplorer(overrides: Partial<React.ComponentProps<typeof LogExplor
     suggestions: [{ label: 'High severity', query: 'severity=high' }],
     hint: 'Try narrowing by severity.',
     pinnedIds: [] as string[],
+    selectedId: null as string | null,
     onQueryChange: vi.fn(),
     onTimeRangeChange: vi.fn(),
     onPin: vi.fn(),
     onUnpin: vi.fn(),
+    onSelect: vi.fn(),
+    onFailedAttempt: vi.fn(),
     ...overrides,
   };
   render(<LogExplorer {...props} />);
@@ -76,58 +79,42 @@ describe('LogExplorer', () => {
     expect(screen.getByTestId('unknown-fields')).toHaveTextContent('svrty');
   });
 
-  it('submits the typed query', () => {
-    const props = renderExplorer();
+  it('submits the typed query and clears context selection', () => {
+    const props = renderExplorer({ selectedId: 'e1' });
     fireEvent.change(screen.getByLabelText('search query'), { target: { value: 'severity=low' } });
     fireEvent.submit(screen.getByRole('search'));
     expect(props.onQueryChange).toHaveBeenCalledWith('severity=low');
+    expect(props.onSelect).toHaveBeenCalledWith(null);
   });
 
-  it('runs a suggestion chip immediately', () => {
+  it('does not expose exact-query chips or inline exact hints', () => {
+    renderExplorer();
+    expect(screen.queryByRole('button', { name: /high severity/i })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('hint')).not.toBeInTheDocument();
+  });
+
+  it('reports row selection to the shared evidence context', () => {
     const props = renderExplorer();
-    fireEvent.click(screen.getByRole('button', { name: /High severity/ }));
-    expect(props.onQueryChange).toHaveBeenCalledWith('severity=high');
-  });
-
-  it('shows an event detail once a row is selected', () => {
-    renderExplorer();
     fireEvent.click(screen.getByRole('button', { name: /Interactive shell spawned/ }));
-    expect(screen.getByRole('button', { name: /pin to case file/i })).toBeInTheDocument();
+    expect(props.onSelect).toHaveBeenCalledWith('e1');
   });
 
-  it('withholds the hint until two consecutive searches return nothing', () => {
-    renderExplorer();
+  it('records empty, malformed, and unknown-field submissions as failed attempts', () => {
+    const props = renderExplorer();
     const input = screen.getByLabelText('search query');
 
     fireEvent.change(input, { target: { value: 'severity=nonexistent' } });
     fireEvent.submit(screen.getByRole('search'));
-    expect(screen.queryByTestId('hint')).toBeNull();
-
-    fireEvent.change(input, { target: { value: 'severity=alsonothing' } });
+    fireEvent.change(input, { target: { value: 'severity=' } });
     fireEvent.submit(screen.getByRole('search'));
-    expect(screen.getByTestId('hint')).toHaveTextContent('Try narrowing by severity.');
+    fireEvent.change(input, { target: { value: 'svrty=high' } });
+    fireEvent.submit(screen.getByRole('search'));
+    expect(props.onFailedAttempt).toHaveBeenCalledTimes(3);
   });
 
-  it('counts a resubmission of the same failing query toward the hint', () => {
+  it('keeps results in a fixed-height owned scroll viewport', () => {
     renderExplorer();
-    const input = screen.getByLabelText('search query');
-
-    fireEvent.change(input, { target: { value: 'severity=nonexistent' } });
-    fireEvent.submit(screen.getByRole('search'));
-    expect(screen.queryByTestId('hint')).toBeNull();
-
-    // Same text again, without editing — a stuck player hitting Enter twice.
-    fireEvent.submit(screen.getByRole('search'));
-    expect(screen.getByTestId('hint')).toBeInTheDocument();
-  });
-
-  it('does not count mounting with an unmatched query as a search', () => {
-    renderExplorer({ query: 'severity=nonexistent' });
-    const input = screen.getByLabelText('search query');
-
-    // One deliberate empty search after mount must not be enough.
-    fireEvent.change(input, { target: { value: 'severity=alsonothing' } });
-    fireEvent.submit(screen.getByRole('search'));
-    expect(screen.queryByTestId('hint')).toBeNull();
+    expect(screen.getByTestId('result-viewport')).toHaveClass('overflow-y-auto');
+    expect(screen.getByLabelText('log explorer')).toHaveClass('min-h-0');
   });
 });

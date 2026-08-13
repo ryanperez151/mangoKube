@@ -1,219 +1,345 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, act, waitFor, within } from '@testing-library/react';
 import { useSimStore } from '@/engine/store';
 import { chapter1Campaigns } from '@/content/chapter1';
 import MissionPage from './page';
 
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
-}));
+const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
+
+vi.mock('next/navigation', () => ({ useRouter: () => router }));
 
 beforeEach(() => {
   useSimStore.getState().resetProgress();
   localStorage.clear();
+  router.push.mockClear();
+  router.replace.mockClear();
 });
 
-describe('MissionPage — Infiltrator', () => {
-  it('marks the current standalone briefing seen before entering the workspace', () => {
+afterEach(() => vi.restoreAllMocks());
+
+function renderWorkspace(role: 'sentinel' | 'infiltrator') {
+  const campaign = chapter1Campaigns[role];
+  useSimStore.getState().startCampaign(campaign);
+  useSimStore.getState().markBriefingSeen(campaign.stages[0].id);
+  return render(<MissionPage />);
+}
+
+function submitTerminal(command: string) {
+  const input = screen.getByLabelText('terminal input');
+  fireEvent.change(input, { target: { value: command } });
+  fireEvent.submit(input.closest('form')!);
+}
+
+describe('MissionPage mode order', () => {
+  it('prioritizes a pending resolution over an unseen briefing', () => {
+    useSimStore.getState().startCampaign(chapter1Campaigns.infiltrator);
+    useSimStore.setState({ pendingStageResolution: { stageId: 'recon' } });
+    render(<MissionPage />);
+
+    expect(screen.getByRole('main', { name: /stage resolution/i })).toBeInTheDocument();
+    expect(screen.queryByRole('main', { name: /operation briefing/i })).not.toBeInTheDocument();
+  });
+
+  it('shows an unseen briefing before the role workspace and marks it only on Begin', () => {
     useSimStore.getState().startCampaign(chapter1Campaigns.infiltrator);
     render(<MissionPage />);
 
     expect(screen.getByRole('main', { name: /operation briefing/i })).toBeInTheDocument();
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    const objectiveLabel = screen.getByText('Active objective');
-    expect(objectiveLabel).toHaveClass('text-slate-400');
-    expect(objectiveLabel.className).not.toMatch(/text-(mango|leaf)/);
-    expect(objectiveLabel.parentElement?.className).not.toMatch(/(border|bg)-mango/);
+    expect(useSimStore.getState().seenBriefingIds).toEqual([]);
     fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
 
-    expect(useSimStore.getState().seenBriefingIds).toContain('recon');
+    expect(useSimStore.getState().seenBriefingIds).toEqual(['recon']);
     expect(screen.getByLabelText('terminal input')).toBeInTheDocument();
   });
 
-  it('can replay an already-seen briefing from the workspace', () => {
-    useSimStore.getState().startCampaign(chapter1Campaigns.infiltrator);
-    useSimStore.getState().markBriefingSeen('recon');
-    render(<MissionPage />);
-
-    fireEvent.click(screen.getByRole('button', { name: /replay briefing/i }));
-
-    expect(screen.getByRole('main', { name: /operation briefing/i })).toBeInTheDocument();
-  });
-
-  it('shows the stage briefing first, then the terminal after dismissal', () => {
-    useSimStore.getState().startCampaign(chapter1Campaigns.infiltrator);
-    render(<MissionPage />);
-
-    expect(screen.getByText('Recon')).toBeInTheDocument();
-    fireEvent.click(screen.getByText('Begin'));
-
-    expect(screen.getByLabelText('terminal input')).toBeInTheDocument();
-  });
-
-  it('holds a completed recon sequence for explicit continuation', () => {
-    useSimStore.getState().startCampaign(chapter1Campaigns.infiltrator);
-    render(<MissionPage />);
-    fireEvent.click(screen.getByText('Begin'));
-
-    const input = screen.getByLabelText('terminal input');
-    fireEvent.change(input, { target: { value: 'kubectl get pods' } });
-    fireEvent.submit(input.closest('form')!);
-    fireEvent.change(input, { target: { value: 'kubectl auth can-i --list' } });
-    fireEvent.submit(input.closest('form')!);
-    fireEvent.change(input, {
-      target: { value: 'cat /var/run/secrets/kubernetes.io/serviceaccount/token' },
+  it('enters the workspace immediately after a decision and retains its consequence as context', () => {
+    useSimStore.getState().startCampaign(chapter1Campaigns.sentinel);
+    act(() => {
+      useSimStore.setState({ stageIndex: 2 });
+      useSimStore.getState().markBriefingSeen('scope');
     });
-    fireEvent.submit(input.closest('form')!);
-
-    expect(useSimStore.getState().stageIndex).toBe(0);
-    expect(useSimStore.getState().pendingStageResolution).toEqual({ stageId: 'recon' });
-  });
-
-  it('does not show a log explorer for a campaign with no corpus', () => {
-    useSimStore.getState().startCampaign(chapter1Campaigns.infiltrator);
     render(<MissionPage />);
-    fireEvent.click(screen.getByText('Begin'));
-    expect(screen.queryByLabelText('log explorer')).toBeNull();
-  });
 
-  it('does not show a case file for a campaign with no log explorer', () => {
-    useSimStore.getState().startCampaign(chapter1Campaigns.infiltrator);
-    render(<MissionPage />);
-    fireEvent.click(screen.getByText('Begin'));
-    expect(screen.queryByLabelText('case file')).toBeNull();
-  });
+    fireEvent.click(screen.getByRole('button', { name: /hunt persistence/i }));
 
-  it('still shows the stage objective without a case file', () => {
-    useSimStore.getState().startCampaign(chapter1Campaigns.infiltrator);
-    render(<MissionPage />);
-    fireEvent.click(screen.getByText('Begin'));
-    expect(
-      screen.getByText('Find where the implant landed and what it can do.')
-    ).toBeInTheDocument();
+    expect(screen.getByRole('main', { name: /mission workspace/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /enter workspace/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/Decision: Hunt persistence/i)).toBeInTheDocument();
   });
 });
 
-describe('MissionPage — Sentinel', () => {
+describe('MissionPage shared workspace shell', () => {
+  it('shows role, current stage, locked future markers, fact-backed progress, and fixed-height regions', () => {
+    renderWorkspace('sentinel');
+
+    expect(screen.getByText('Sentinel')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Triage' })).toBeInTheDocument();
+    expect(screen.getByLabelText('0 of 2 objectives complete')).toBeInTheDocument();
+    expect(screen.getByLabelText('Stage 2 locked')).toBeInTheDocument();
+    expect(screen.queryByText('Identity & Blast Radius')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mission-workspace')).toHaveClass('h-[100dvh]', 'overflow-hidden');
+    expect(screen.getByTestId('primary-workspace')).toHaveClass('min-h-0', 'overflow-hidden');
+    expect(screen.getByTestId('context-viewport')).toHaveClass('min-h-0', 'overflow-y-auto');
+  });
+
+  it('Exit preserves progress while confirmed Restart clears it and returns to role selection', () => {
+    renderWorkspace('infiltrator');
+    submitTerminal('kubectl get pods');
+    expect(useSimStore.getState().collectedFacts).toContain('found-implant-pod');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Exit' }));
+    expect(router.push).toHaveBeenCalledWith('/');
+    expect(useSimStore.getState().collectedFacts).toContain('found-implant-pod');
+
+    vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Restart' }));
+    expect(useSimStore.getState().campaignId).toBe('infiltrator');
+    fireEvent.click(screen.getByRole('button', { name: 'Restart' }));
+    expect(useSimStore.getState().campaignId).toBeNull();
+    expect(router.push).toHaveBeenCalledWith('/campaign-select');
+  });
+
+  it('Help is focused, keyboard-dismissible, unlocks tier 1, and replays without altering progress', async () => {
+    renderWorkspace('infiltrator');
+    const seenBefore = [...useSimStore.getState().seenBriefingIds];
+
+    fireEvent.click(screen.getByRole('button', { name: 'Help' }));
+    const dialog = screen.getByRole('dialog', { name: /mission help/i });
+    expect(dialog).toBeInTheDocument();
+    expect(screen.getByText('Start with the workloads already running in the cluster.')).toBeInTheDocument();
+    await waitFor(() => expect(document.activeElement).toBe(dialog));
+
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Help' }));
+    fireEvent.click(screen.getByRole('button', { name: /replay briefing/i }));
+    expect(screen.getByRole('main', { name: /operation briefing/i })).toBeInTheDocument();
+    expect(useSimStore.getState().seenBriefingIds).toEqual(seenBefore);
+  });
+
+  it('contains Help focus, makes the workspace inert, and restores focus on close', async () => {
+    renderWorkspace('infiltrator');
+    const helpButton = screen.getByRole('button', { name: 'Help' });
+    fireEvent.click(helpButton);
+
+    expect(screen.getByTestId('workspace-content')).toHaveAttribute('inert');
+    const closeButton = screen.getByRole('button', { name: 'Close help' });
+    const replayButton = screen.getByRole('button', { name: /replay briefing/i });
+    replayButton.focus();
+    fireEvent.keyDown(replayButton, { key: 'Tab' });
+    expect(document.activeElement).toBe(closeButton);
+    closeButton.focus();
+    fireEvent.keyDown(closeButton, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(replayButton);
+    fireEvent.keyDown(replayButton, { key: 'Escape' });
+    await waitFor(() => expect(document.activeElement).toBe(helpButton));
+    expect(screen.getByTestId('workspace-content')).not.toHaveAttribute('inert');
+  });
+});
+
+describe('MissionPage adaptive help', () => {
+  it('unrecognized commands unlock only the highest tier and tier 3 inserts without submitting', () => {
+    renderWorkspace('infiltrator');
+    for (let attempt = 0; attempt < 4; attempt += 1) submitTerminal('not-a-command');
+
+    expect(useSimStore.getState().failedAttemptsByStage.recon).toBe(4);
+    fireEvent.click(screen.getByRole('button', { name: 'Help' }));
+    expect(screen.queryByText('Start with the workloads already running in the cluster.')).not.toBeInTheDocument();
+    expect(screen.getByText(/Run `kubectl get pods`/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /insert into terminal/i }));
+
+    expect(screen.getByLabelText('terminal input')).toHaveValue('kubectl get pods');
+    expect(document.activeElement).toBe(screen.getByLabelText('terminal input'));
+    expect(useSimStore.getState().terminalHistory).toHaveLength(4);
+  });
+
+  it('failed Sentinel searches unlock tier 2 at two and tier 3 at four with the only exact-query insert', () => {
+    renderWorkspace('sentinel');
+    const input = screen.getByLabelText('search query');
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      fireEvent.change(input, { target: { value: 'source=nothing' } });
+      fireEvent.submit(screen.getByRole('search'));
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Help' }));
+    expect(screen.getByText(/Then look for Kubernetes exec activity/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /insert/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close help' }));
+
+    for (let attempt = 0; attempt < 2; attempt += 1) fireEvent.submit(screen.getByRole('search'));
+    fireEvent.click(screen.getByRole('button', { name: 'Help' }));
+    expect(screen.queryByText(/Then look for Kubernetes exec activity/)).not.toBeInTheDocument();
+    const submittedBeforeInsert = useSimStore.getState().activeQuery;
+    fireEvent.click(screen.getByRole('button', { name: /insert into search/i }));
+    expect(screen.getByLabelText('search query')).toHaveValue('source=edr severity=high');
+    expect(useSimStore.getState().activeQuery).toBe(submittedBeforeInsert);
+  });
+
+  it('a new fact resets failures without lowering unlocked guidance', () => {
+    renderWorkspace('infiltrator');
+    submitTerminal('bad');
+    submitTerminal('bad');
+    submitTerminal('kubectl get pods');
+
+    expect(useSimStore.getState().failedAttemptsByStage.recon).toBe(0);
+    expect(useSimStore.getState().guidanceLevelByStage.recon).toBe(2);
+  });
+});
+
+describe('MissionPage Sentinel workspace', () => {
   beforeEach(() => {
     useSimStore.getState().startCampaign(chapter1Campaigns.sentinel);
+    useSimStore.getState().markBriefingSeen('triage');
   });
 
-  it('opens on the log explorer, attack map, and case file', () => {
+  it('uses exactly Evidence and Attack Path context tabs and no query chips', () => {
     render(<MissionPage />);
-    fireEvent.click(screen.getByText('Begin'));
-
-    expect(screen.getByLabelText('log explorer')).toBeInTheDocument();
-    expect(screen.getByLabelText('attack path map')).toBeInTheDocument();
+    const tablist = screen.getByRole('tablist', { name: 'Mission context' });
+    expect(within(tablist).getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+      'Evidence',
+      'Attack Path',
+    ]);
     expect(screen.getByLabelText('case file')).toBeInTheDocument();
+    expect(screen.queryByLabelText('attack path map')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /query/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Attack Path' }));
+    expect(screen.getByLabelText('attack path map')).toBeInTheDocument();
   });
 
-  it('withholds the terminal until a stage has response commands', () => {
+  it('uses roving keyboard focus and associated tab panels', async () => {
     render(<MissionPage />);
-    fireEvent.click(screen.getByText('Begin'));
-    expect(screen.queryByLabelText('terminal input')).toBeNull();
+    const evidence = screen.getByRole('tab', { name: 'Evidence' });
+    const attackPath = screen.getByRole('tab', { name: 'Attack Path' });
+    expect(evidence).toHaveAttribute('tabindex', '0');
+    expect(attackPath).toHaveAttribute('tabindex', '-1');
+    evidence.focus();
+    fireEvent.keyDown(evidence, { key: 'ArrowRight' });
+    await waitFor(() => expect(document.activeElement).toBe(attackPath));
+    expect(attackPath).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'context-tab-attack-path');
   });
 
-  it('holds triage completion for explicit continuation when both signal events are pinned', () => {
+  it('combines selected details, pinning, findings, and case history in Evidence with one announcement and badge', () => {
     render(<MissionPage />);
-    fireEvent.click(screen.getByText('Begin'));
+    fireEvent.click(screen.getByRole('button', { name: /Interactive shell \/bin\/sh spawned/i }));
+    expect(screen.getByRole('button', { name: /pin to case file/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /pin to case file/i }));
+
+    expect(screen.getByText('Interactive shell in a build pod')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /remove from case file/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Evidence, 1 new finding/i })).toBeInTheDocument();
+    expect(screen.getByTestId('discovery-announcement')).toHaveAttribute('aria-live', 'polite');
+    expect(screen.getByTestId('discovery-announcement')).toHaveTextContent(/Interactive shell in a build pod established/i);
+    expect(screen.getByLabelText('1 of 2 objectives complete')).toBeInTheDocument();
+  });
+
+  it('does not count the hidden containment step on the contain-now route', () => {
+    act(() => {
+      useSimStore.setState({
+        stageIndex: 4,
+        decisions: { 'containment-timing': 'contain-now' },
+        collectedFacts: ['revoked-primary-binding'],
+      });
+      useSimStore.getState().markBriefingSeen('containment');
+    });
+    render(<MissionPage />);
+    expect(screen.getByLabelText('0 of 4 objectives complete')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['hunt-first', /hunt persistence/i, 'create serviceaccounts/log-rotator', 'create serviceaccounts/metrics-reconciler'],
+    ['contain-now', /contain now/i, 'create serviceaccounts/metrics-reconciler', 'create serviceaccounts/log-rotator'],
+  ] as const)(
+    'makes the %s decision route events playable through the UI',
+    (choice, buttonName, visibleEvent, hiddenEvent) => {
+      act(() => {
+        useSimStore.setState({ stageIndex: 2, seenBriefingIds: ['triage', 'scope'] });
+      });
+      render(<MissionPage />);
+      fireEvent.click(screen.getByRole('button', { name: buttonName }));
+      expect(useSimStore.getState().decisions['containment-timing']).toBe(choice);
+
+      act(() => {
+        useSimStore.setState({ stageIndex: 3 });
+        useSimStore.getState().markBriefingSeen('persistence');
+      });
+      expect(screen.getByText(visibleEvent)).toBeInTheDocument();
+      expect(screen.queryByText(hiddenEvent)).not.toBeInTheDocument();
+    }
+  );
+
+  it('clears a tier-3 inserted query when the next stage begins', () => {
+    render(<MissionPage />);
+    const search = screen.getByRole('search');
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      fireEvent.change(screen.getByLabelText('search query'), { target: { value: 'source=nothing' } });
+      fireEvent.submit(search);
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Help' }));
+    fireEvent.click(screen.getByRole('button', { name: /insert into search/i }));
+    expect(screen.getByLabelText('search query')).toHaveValue('source=edr severity=high');
 
     act(() => {
       useSimStore.getState().pinEvent('sig-shell-spawn');
       useSimStore.getState().pinEvent('sig-exec-create');
     });
+    fireEvent.click(screen.getByRole('button', { name: /continue operation/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    expect(screen.getByLabelText('search query')).toHaveValue('');
+    expect(useSimStore.getState().activeQuery).toBe('');
+  });
+});
+
+describe('MissionPage Infiltrator workspace', () => {
+  it('uses exactly Objectives and Cluster tabs and never renders an always-visible command list', () => {
+    renderWorkspace('infiltrator');
+    const tablist = screen.getByRole('tablist', { name: 'Mission context' });
+    expect(within(tablist).getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+      'Objectives',
+      'Cluster',
+    ]);
+    expect(screen.getByText('Locate the implanted build pod.')).toBeInTheDocument();
+    expect(screen.queryByTestId('terminal-hints')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Cluster' }));
+    expect(screen.getByRole('img', { name: 'cluster diagram' })).toBeInTheDocument();
+  });
+
+  it.each([
+    ['exfil-first', /exfiltrate first/i, 'kubectl get se', "kubectl get secret ultra-mango-genome-db -o jsonpath='{.data}' | base64 -d", 'exfiltrated-ip'],
+    ['persistence-first', /plant persistence first/i, 'kubectl create s', 'kubectl create serviceaccount log-rotator -n kube-system', 'persistence-sa-created'],
+  ] as const)(
+    'makes the %s decision route command playable and completion-visible',
+    (choice, buttonName, prefix, completed, fact) => {
+      useSimStore.getState().startCampaign(chapter1Campaigns.infiltrator);
+      act(() => {
+        useSimStore.setState({ stageIndex: 3 });
+        useSimStore.getState().markBriefingSeen('escalation');
+      });
+      render(<MissionPage />);
+      fireEvent.click(screen.getByRole('button', { name: buttonName }));
+      expect(useSimStore.getState().decisions['operational-order']).toBe(choice);
+
+      const input = screen.getByLabelText('terminal input');
+      fireEvent.change(input, { target: { value: prefix } });
+      fireEvent.keyDown(input, { key: 'Tab' });
+      expect(input).toHaveValue(completed);
+      fireEvent.submit(input.closest('form')!);
+      expect(useSimStore.getState().collectedFacts).toContain(fact);
+    }
+  );
+
+  it('holds a completed stage for explicit resolution continuation', () => {
+    renderWorkspace('infiltrator');
+    submitTerminal('kubectl get pods');
+    submitTerminal('kubectl auth can-i --list');
+    submitTerminal('cat /var/run/secrets/kubernetes.io/serviceaccount/token');
 
     expect(useSimStore.getState().stageIndex).toBe(0);
-    expect(useSimStore.getState().pendingStageResolution).toEqual({ stageId: 'triage' });
+    expect(screen.getByRole('main', { name: /stage resolution/i })).toBeInTheDocument();
   });
 
-  it('still shows the case file for a campaign with a log explorer', () => {
-    render(<MissionPage />);
-    fireEvent.click(screen.getByText('Begin'));
-    expect(screen.getByLabelText('case file')).toBeInTheDocument();
-  });
-
-  it('shows the terminal once the containment stage is reached', () => {
-    const store = useSimStore.getState();
-    act(() => {
-      store.pinEvent('sig-shell-spawn');
-      store.pinEvent('sig-exec-create');
-      useSimStore.getState().continueFromResolution();
-      useSimStore.getState().pinEvent('sig-sa-out-of-scope');
-      useSimStore.getState().pinEvent('sig-binding-in-effect');
-      useSimStore.getState().pinEvent('sig-binding-origin');
-      useSimStore.getState().continueFromResolution();
-      useSimStore.getState().chooseDecision('containment-timing', 'hunt-first');
-      useSimStore.getState().pinEvent('sig-secret-read');
-      useSimStore.getState().pinEvent('sig-exfil-egress');
-      useSimStore.getState().continueFromResolution();
-      useSimStore.getState().pinEvent('sig-rogue-sa');
-      useSimStore.getState().pinEvent('sig-rogue-binding');
-      useSimStore.getState().continueFromResolution();
-    });
-
-    expect(useSimStore.getState().stageIndex).toBe(4);
-
-    render(<MissionPage />);
-    fireEvent.click(screen.getByText('Begin'));
-    expect(screen.getByLabelText('terminal input')).toBeInTheDocument();
-  });
-
-  it('locks a stage decision to a valid option and focuses its consequence', () => {
-    act(() => {
-      useSimStore.setState({ stageIndex: 2, pendingStageResolution: null });
-      useSimStore.getState().markBriefingSeen('scope');
-    });
-    render(<MissionPage />);
-
-    expect(screen.queryByRole('button', { name: /continue/i })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /hunt persistence/i }));
-
-    expect(useSimStore.getState().decisions).toEqual({ 'containment-timing': 'hunt-first' });
-    const consequence = screen.getByRole('status');
-    expect(consequence).toHaveTextContent(/preserve the entry path/i);
-    expect(document.activeElement).toBe(consequence);
-  });
-
-  it('continues a pending resolution, resolves conditional copy, and focuses the next scene', async () => {
-    act(() => {
-      useSimStore.setState({
-        stageIndex: 2,
-        decisions: { 'containment-timing': 'hunt-first' },
-        pendingStageResolution: { stageId: 'scope' },
-      });
-    });
-    render(<MissionPage />);
-
-    expect(screen.getByText(/hold the primary binding/i)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /continue operation/i }));
-
-    expect(useSimStore.getState().stageIndex).toBe(3);
-    await waitFor(() => {
-      expect(document.activeElement).toBe(
-        screen.getByRole('heading', { name: 'Hunt Persistence' })
-      );
-    });
-  });
-
-  it('renders the briefing without entrance motion when reduced motion is preferred', () => {
-    vi.spyOn(window, 'matchMedia').mockImplementation(
-      (query) =>
-        ({
-          matches: query === '(min-width: 1024px)' || query === '(prefers-reduced-motion: reduce)',
-          media: query,
-          onchange: null,
-          addEventListener: vi.fn(),
-          removeEventListener: vi.fn(),
-          addListener: vi.fn(),
-          removeListener: vi.fn(),
-          dispatchEvent: vi.fn(),
-        }) as MediaQueryList
-    );
-    render(<MissionPage />);
-
-    expect(screen.getByRole('main', { name: /operation briefing/i })).toHaveAttribute(
-      'data-motion',
-      'reduced'
-    );
+  it('uses one screen-reader live region for discoveries', () => {
+    renderWorkspace('infiltrator');
+    expect(document.querySelectorAll('[aria-live]')).toHaveLength(1);
+    expect(screen.getByTestId('discovery-announcement')).toHaveAttribute('aria-live', 'polite');
   });
 });

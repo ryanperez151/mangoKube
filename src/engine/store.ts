@@ -106,6 +106,24 @@ function enterStagePatch(delta: ClusterDelta | undefined, fallback: ClusterStatu
 export const useSimStore = create<SimState>()(
   persist(
     (set, get) => {
+      function updateAttempt(successful: boolean): void {
+        const state = get();
+        const stageId = state.campaign?.stages[state.stageIndex]?.id;
+        if (!stageId) return;
+        const failedAttempts = successful ? 0 : (state.failedAttemptsByStage[stageId] ?? 0) + 1;
+        const unlocked = failedAttempts >= 4 ? 3 : failedAttempts >= 2 ? 2 : 0;
+        set({
+          failedAttemptsByStage: { ...state.failedAttemptsByStage, [stageId]: failedAttempts },
+          guidanceLevelByStage:
+            unlocked > 0
+              ? {
+                  ...state.guidanceLevelByStage,
+                  [stageId]: Math.max(state.guidanceLevelByStage[stageId] ?? 0, unlocked) as GuidanceLevel,
+                }
+              : state.guidanceLevelByStage,
+        });
+      }
+
       /**
        * The single place facts are added and stage completion is judged.
        * Both the terminal and evidence pinning route through here, so the
@@ -192,15 +210,20 @@ export const useSimStore = create<SimState>()(
                 { input, output: ['Command not recognized in this context.'] },
               ],
             });
+            updateAttempt(false);
             return;
           }
 
+          const revealsNewFact = (outcome.revealsFacts ?? []).some(
+            (factId) => !state.collectedFacts.includes(factId)
+          );
           applyReveal(
             outcome.revealsFacts ?? [],
             { terminalHistory: [...state.terminalHistory, { input, output: outcome.output }] },
             outcome.advances === true,
             outcome.clusterDelta
           );
+          if (revealsNewFact) updateAttempt(true);
         },
 
         pinEvent: (eventId) => {
@@ -218,6 +241,9 @@ export const useSimStore = create<SimState>()(
             false,
             undefined
           );
+          if (event.revealsFact && !state.collectedFacts.includes(event.revealsFact)) {
+            updateAttempt(true);
+          }
         },
 
         /**
@@ -261,23 +287,7 @@ export const useSimStore = create<SimState>()(
           });
         },
 
-        recordAttempt: (successful) => {
-          const state = get();
-          const stageId = state.campaign?.stages[state.stageIndex]?.id;
-          if (!stageId) return;
-          const failedAttempts = successful ? 0 : (state.failedAttemptsByStage[stageId] ?? 0) + 1;
-          const unlocked = failedAttempts >= 4 ? 3 : failedAttempts >= 2 ? 2 : 0;
-          set({
-            failedAttemptsByStage: { ...state.failedAttemptsByStage, [stageId]: failedAttempts },
-            guidanceLevelByStage:
-              unlocked > 0
-                ? {
-                    ...state.guidanceLevelByStage,
-                    [stageId]: Math.max(state.guidanceLevelByStage[stageId] ?? 0, unlocked) as GuidanceLevel,
-                  }
-                : state.guidanceLevelByStage,
-          });
-        },
+        recordAttempt: updateAttempt,
 
         markBriefingSeen: (briefingId) => {
           const state = get();
