@@ -77,7 +77,8 @@ describe('MissionPage shared workspace shell', () => {
     expect(screen.getByLabelText('0 of 2 objectives complete')).toBeInTheDocument();
     expect(screen.getByLabelText('Stage 2 locked')).toBeInTheDocument();
     expect(screen.queryByText('Identity & Blast Radius')).not.toBeInTheDocument();
-    expect(screen.getByTestId('mission-workspace')).toHaveClass('h-[100dvh]', 'overflow-hidden');
+    expect(screen.getByTestId('mission-workspace')).toHaveClass('h-full', 'min-h-0', 'overflow-hidden');
+    expect(screen.getByTestId('mission-workspace')).not.toHaveClass('h-[100dvh]');
     expect(screen.getByTestId('primary-workspace')).toHaveClass('min-h-0', 'overflow-hidden');
     expect(screen.getByTestId('context-viewport')).toHaveClass('min-h-0', 'overflow-y-auto');
   });

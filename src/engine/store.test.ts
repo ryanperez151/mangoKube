@@ -498,6 +498,54 @@ describe('persist migration', () => {
     expect(getPersistenceStatus().kind).toBe('recovered');
   });
 
+  it.each([
+    null,
+    [],
+    'invalid-state',
+    42,
+    true,
+    {},
+  ])('reports a supplied non-object or empty progress state as corrupt: %j', async (persistedState) => {
+    localStorage.setItem(
+      'operation-mango-progress',
+      JSON.stringify({ state: persistedState, version: 2 })
+    );
+
+    await useSimStore.persist.rehydrate();
+
+    expect(useSimStore.getState().campaignId).toBeNull();
+    expect(useSimStore.getState().stageIndex).toBe(0);
+    expect(getPersistenceStatus().kind).toBe('corrupt');
+  });
+
+  it('reports null-campaign progress with incompatible data as corrupt', async () => {
+    localStorage.setItem(
+      'operation-mango-progress',
+      JSON.stringify({
+        state: { ...initialPersistedProgress, stageIndex: 3 },
+        version: 2,
+      })
+    );
+
+    await useSimStore.persist.rehydrate();
+
+    expect(useSimStore.getState().campaignId).toBeNull();
+    expect(useSimStore.getState().stageIndex).toBe(0);
+    expect(getPersistenceStatus().kind).toBe('corrupt');
+  });
+
+  it('accepts only the canonical empty progress state as a clean no-save', async () => {
+    localStorage.setItem(
+      'operation-mango-progress',
+      JSON.stringify({ state: initialPersistedProgress, version: 2 })
+    );
+
+    await useSimStore.persist.rehydrate();
+
+    expect(useSimStore.getState().campaignId).toBeNull();
+    expect(getPersistenceStatus().kind).toBe('ready');
+  });
+
   it('discards an incompatible campaign id without throwing', async () => {
     localStorage.setItem(
       'operation-mango-progress',

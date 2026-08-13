@@ -9,6 +9,7 @@ import {
 } from './helpers';
 
 test('keyboard-completes the Infiltrator campaign through the visible UI', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
   await page.addInitScript(() => {
     Object.defineProperty(window, 'localStorage', {
       configurable: true,
@@ -29,6 +30,23 @@ test('keyboard-completes the Infiltrator campaign through the visible UI', async
       warningBox!.y < actionsBox!.y + actionsBox!.height &&
       warningBox!.y + warningBox!.height > actionsBox!.y
   ).toBe(false);
+
+  const missionBox = await page.getByTestId('mission-workspace').boundingBox();
+  const terminalBox = await page.getByLabel('terminal input').boundingBox();
+  const viewport = page.viewportSize();
+  const overflow = await page.evaluate(() => ({
+    htmlX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    htmlY: document.documentElement.scrollHeight - document.documentElement.clientHeight,
+    bodyX: document.body.scrollWidth - document.body.clientWidth,
+    bodyY: document.body.scrollHeight - document.body.clientHeight,
+  }));
+  expect(overflow).toEqual({ htmlX: 0, htmlY: 0, bodyX: 0, bodyY: 0 });
+  expect(missionBox).not.toBeNull();
+  expect(terminalBox).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  expect(missionBox!.y + missionBox!.height).toBeLessThanOrEqual(viewport!.height);
+  expect(terminalBox!.y + terminalBox!.height).toBeLessThanOrEqual(viewport!.height);
+  await expect(page.getByLabel('terminal input')).toBeVisible();
 
   await activate(page, 'button', 'Help');
   await page.keyboard.press('Escape');

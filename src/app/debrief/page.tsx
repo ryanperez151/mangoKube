@@ -71,7 +71,7 @@ export default function DebriefPage() {
     <DesktopGate>
       <div className="app-shell flex min-h-0 flex-col bg-scene-ink">
         <PersistenceStatusNotice placement="inline" className="mx-4 mt-2" />
-        <div className="status-page-content min-h-0 flex-1">
+        <div className="status-page-content h-0 min-h-0 flex-1 overflow-hidden">
           <DebriefExperience />
         </div>
       </div>

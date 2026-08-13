@@ -103,4 +103,19 @@ describe('LandingPage', () => {
     expect(useSimStore.getState().campaignId).toBeNull();
     expect(push).toHaveBeenCalledWith('/campaign-select');
   });
+
+  it('surfaces a valid-JSON but structurally corrupt progress envelope with safe reset', async () => {
+    localStorage.setItem(
+      'operation-mango-progress',
+      JSON.stringify({ state: [], version: 2 })
+    );
+    await useSimStore.persist.rehydrate();
+
+    render(<LandingPage />);
+
+    expect(screen.getByRole('status')).toHaveTextContent(/saved progress could not be read/i);
+    fireEvent.click(screen.getByRole('button', { name: /reset progress/i }));
+    expect(useSimStore.getState().campaignId).toBeNull();
+    expect(push).toHaveBeenCalledWith('/campaign-select');
+  });
 });

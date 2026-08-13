@@ -101,6 +101,46 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
+const PERSISTED_PROGRESS_KEYS = new Set(Object.keys(initialPersistedProgress));
+
+function isCanonicalEmptyProgress(source: Record<string, unknown>): boolean {
+  const keys = Object.keys(source);
+  if (
+    keys.length !== PERSISTED_PROGRESS_KEYS.size ||
+    keys.some((key) => !PERSISTED_PROGRESS_KEYS.has(key)) ||
+    [...PERSISTED_PROGRESS_KEYS].some((key) => !Object.prototype.hasOwnProperty.call(source, key))
+  ) return false;
+
+  const emptyArrays = [
+    source.revealedFacts,
+    source.collectedFacts,
+    source.terminalHistory,
+    source.highlightedNodeIds,
+    source.revealedEdgeIds,
+    source.pinnedEvidence,
+    source.seenBriefingIds,
+  ];
+  const emptyRecords = [
+    source.decisions,
+    source.guidanceLevelByStage,
+    source.failedAttemptsByStage,
+  ];
+
+  return (
+    source.campaignId === null &&
+    source.stageIndex === 0 &&
+    source.clusterStatus === 'nominal' &&
+    source.activeQuery === '' &&
+    source.timeRangeId === 'last-1h' &&
+    source.pendingStageResolution === null &&
+    emptyArrays.every((value) => Array.isArray(value) && value.length === 0) &&
+    emptyRecords.every((value) => {
+      const record = asRecord(value);
+      return record === value && Object.keys(record).length === 0;
+    })
+  );
+}
+
 function uniqueKnownStrings(value: unknown, valid: ReadonlySet<string>): string[] {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.filter((item): item is string => typeof item === 'string' && valid.has(item)))];
@@ -122,7 +162,10 @@ export function normalizePersistedProgress(value: unknown): {
 } {
   const source = asRecord(value);
   if (source.campaignId == null) {
-    return { progress: { ...initialPersistedProgress }, issue: 'none' };
+    return {
+      progress: { ...initialPersistedProgress },
+      issue: isCanonicalEmptyProgress(source) ? 'none' : 'corrupt',
+    };
   }
   if (source.campaignId !== 'sentinel' && source.campaignId !== 'infiltrator') {
     return { progress: { ...initialPersistedProgress }, issue: 'corrupt' };

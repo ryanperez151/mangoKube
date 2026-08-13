@@ -398,7 +398,7 @@ function MissionExperience() {
   return (
     <main
       data-testid="mission-workspace"
-      className="h-[100dvh] min-h-0 overflow-hidden bg-scene-ink p-4"
+      className="h-full min-h-0 overflow-hidden bg-scene-ink p-4"
       aria-label="Mission workspace"
     >
       <div ref={workspaceContentRef} data-testid="workspace-content" className="mx-auto flex h-full min-h-0 max-w-[1600px] flex-col gap-3">
@@ -571,7 +571,7 @@ export default function MissionPage() {
     <DesktopGate>
       <div className="app-shell flex min-h-0 flex-col bg-scene-ink">
         <PersistenceStatusNotice placement="inline" className="mx-4 mt-2" />
-        <div className="status-page-content min-h-0 flex-1">
+        <div className="status-page-content h-0 min-h-0 flex-1 overflow-hidden">
           <MissionExperience />
         </div>
       </div>
