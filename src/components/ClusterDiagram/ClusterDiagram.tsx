@@ -1,7 +1,5 @@
 'use client';
 
-import { motion } from 'framer-motion';
-
 type ClusterStatus = 'nominal' | 'suspicious' | 'compromised' | 'contained';
 
 interface ClusterDiagramProps {
@@ -54,7 +52,7 @@ export function ClusterDiagram({ highlightedNodeIds, revealedEdgeIds, status }: 
         const to = nodeById[edge.to];
         if (!from || !to) return null;
         return (
-          <motion.line
+          <line
             key={edgeId}
             data-testid={`edge-${edgeId}`}
             x1={from.x}
@@ -63,8 +61,6 @@ export function ClusterDiagram({ highlightedNodeIds, revealedEdgeIds, status }: 
             y2={to.y}
             stroke={STATUS_COLORS[status]}
             strokeWidth={1.5}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
           />
         );
       })}
@@ -73,14 +69,13 @@ export function ClusterDiagram({ highlightedNodeIds, revealedEdgeIds, status }: 
         const isHighlighted = highlightedNodeIds.includes(node.id);
         return (
           <g key={node.id} data-testid={`node-${node.id}`} data-highlighted={isHighlighted}>
-            <motion.circle
+            <circle
               cx={node.x}
               cy={node.y}
               r={16}
               fill={isHighlighted ? STATUS_COLORS[status] : '#2b1d09'}
               stroke="#ffd27a"
               strokeWidth={1}
-              animate={{ scale: isHighlighted ? 1.15 : 1 }}
             />
             <text x={node.x} y={node.y + 30} fontSize={9} fill="#ffd27a" textAnchor="middle">
               {node.label}

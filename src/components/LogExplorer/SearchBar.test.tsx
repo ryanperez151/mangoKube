@@ -8,6 +8,14 @@ describe('SearchBar', () => {
     expect(screen.getByLabelText('search query')).toHaveValue('source=edr');
   });
 
+  it('uses a neutral prompt without leaking an exact query or command-like answer', () => {
+    render(<SearchBar value="" onChange={() => {}} onSubmit={() => {}} />);
+    const input = screen.getByLabelText('search query');
+
+    expect(input).toHaveAttribute('placeholder', 'Search fields or terms');
+    expect(input.getAttribute('placeholder')).not.toMatch(/\w+=\S+|kubectl|source=k8s-audit/i);
+  });
+
   it('reports typing through onChange', () => {
     const onChange = vi.fn();
     render(<SearchBar value="" onChange={onChange} onSubmit={() => {}} />);
@@ -26,7 +34,10 @@ describe('SearchBar', () => {
     render(
       <SearchBar value="user=" onChange={() => {}} onSubmit={() => {}} error='Missing value for field "user".' />
     );
-    expect(screen.getByRole('alert')).toHaveTextContent('Missing value for field "user".');
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('Missing value for field "user".');
+    expect(alert).toHaveClass('text-mango-300');
+    expect(alert.className).not.toContain('blight');
   });
 
   it('shows the result count when there is no error', () => {

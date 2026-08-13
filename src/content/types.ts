@@ -1,5 +1,30 @@
 export type CampaignId = 'infiltrator' | 'sentinel';
 
+export type GuidanceLevel = 1 | 2 | 3;
+
+/** Every listed decision must have the specified option selected. */
+export type ChoiceCondition = Record<string, string>;
+
+export interface ConditionalCopy {
+  when?: ChoiceCondition;
+  lines: string[];
+}
+
+export interface ObjectiveStep {
+  id: string;
+  label: string;
+  detail?: string;
+  requiresFacts: string[];
+  visibleWhen?: ChoiceCondition;
+}
+
+export interface GuidanceStep {
+  level: GuidanceLevel;
+  lines: string[];
+  insertText?: string;
+  visibleWhen?: ChoiceCondition;
+}
+
 export interface Fact {
   id: string;
   label: string;
@@ -10,6 +35,41 @@ export interface ClusterDelta {
   highlightNodeIds?: string[];
   revealEdgeIds?: string[];
   status?: 'nominal' | 'suspicious' | 'compromised' | 'contained';
+}
+
+export interface DecisionEffects {
+  revealsFacts?: string[];
+  clusterDelta?: ClusterDelta;
+}
+
+export interface MissionDecisionOption {
+  id: string;
+  label: string;
+  description: string;
+  effects?: DecisionEffects;
+}
+
+export interface MissionDecision {
+  id: string;
+  timing: 'before-stage' | 'after-stage';
+  prompt: string;
+  options: MissionDecisionOption[];
+}
+
+export interface StageResolution {
+  title: string;
+  summary: string[];
+  conditionalSummary?: ConditionalCopy[];
+}
+
+export interface PendingStageResolution {
+  stageId: string;
+}
+
+export interface CampaignRole {
+  fantasy: string;
+  primaryMechanic: string;
+  learningFocus: string;
 }
 
 export interface CommandOutcome {
@@ -23,6 +83,7 @@ export interface CommandDefinition {
   match: RegExp;
   description: string;
   requiresFacts?: string[];
+  visibleWhen?: ChoiceCondition;
   outcome: CommandOutcome;
 }
 
@@ -30,7 +91,12 @@ export interface Stage {
   id: string;
   title: string;
   briefing: string[];
+  conditionalBriefing?: ConditionalCopy[];
   objective: string;
+  objectiveSteps?: ObjectiveStep[];
+  guidance?: GuidanceStep[];
+  decision?: MissionDecision;
+  resolution?: StageResolution;
   commands: CommandDefinition[];
   clusterInitial: ClusterDelta;
   /** Stage completes once every listed fact is collected. */
@@ -58,9 +124,11 @@ export interface Campaign {
   id: CampaignId;
   title: string;
   tagline: string;
+  role?: CampaignRole;
   stages: Stage[];
   factLibrary: Record<string, Fact>;
   debrief: CampaignDebrief;
+  conditionalDebrief?: ConditionalCopy[];
   /** Present only on campaigns that use the log explorer. */
   logCorpus?: LogEvent[];
   attackMap?: AttackMapNode[];
@@ -87,6 +155,7 @@ export interface LogEvent {
   revealsFact?: string;
   /** Shown when the event is pinned: why it matters, or why it is routine. */
   analystNote?: string;
+  visibleWhen?: ChoiceCondition;
 }
 
 export interface TimeRange {

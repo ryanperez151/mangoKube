@@ -10,7 +10,7 @@ interface TimeRangeSelectProps {
 
 export function TimeRangeSelect({ ranges, value, onChange }: TimeRangeSelectProps) {
   return (
-    <label className="flex items-center gap-2 text-xs uppercase tracking-wider text-mango-300/60">
+    <label className="flex items-center gap-2 text-xs uppercase tracking-wider text-mango-300/80">
       Time range
       <select
         aria-label="time range"

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
 import type { AttackMapNode, AttackMapNodeState } from '@/content/types';
 import { deriveNodeState } from '@/engine/attackMap';
 
@@ -27,7 +26,6 @@ const STATE_STYLE: Record<
  */
 export function AttackMap({ nodes, facts }: AttackMapProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const reduceMotion = useReducedMotion();
   const factSet = new Set(facts);
   const stateById = new Map(nodes.map((node) => [node.id, deriveNodeState(node, factSet)]));
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
@@ -93,7 +91,7 @@ export function AttackMap({ nodes, facts }: AttackMapProps) {
                 }
               }}
             >
-              <motion.circle
+              <circle
                 cx={node.x}
                 cy={node.y}
                 r={style.radius}
@@ -101,17 +99,6 @@ export function AttackMap({ nodes, facts }: AttackMapProps) {
                 stroke={style.stroke}
                 strokeWidth={0.7}
                 strokeDasharray={style.dash}
-                initial={false}
-                animate={
-                  reduceMotion
-                    ? { scale: 1, opacity: 1 }
-                    : {
-                        scale: state === 'confirmed' ? [1, 1.35, 1] : 1,
-                        opacity: 1,
-                      }
-                }
-                transition={{ duration: reduceMotion ? 0 : 0.7, ease: 'easeOut' }}
-                style={{ transformOrigin: `${node.x}px ${node.y}px` }}
               />
               <text
                 x={node.x}

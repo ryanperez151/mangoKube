@@ -5,6 +5,12 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        scene: {
+          ink: '#070908',
+          base: '#0b0f0d',
+          raised: '#121815',
+          focal: '#18211c',
+        },
         // Night orchard: the ground everything sits on.
         orchard: {
           950: '#080b09',
@@ -32,8 +38,25 @@ const config: Config = {
         },
       },
       fontFamily: {
-        display: ['"Segoe UI"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        mono: ['ui-monospace', '"Cascadia Code"', '"JetBrains Mono"', 'Consolas', 'monospace'],
+        display: [
+          '"Barlow Condensed"',
+          '"Arial Narrow"',
+          '"Segoe UI"',
+          'ui-sans-serif',
+          'system-ui',
+          'sans-serif',
+        ],
+        mono: [
+          '"IBM Plex Mono"',
+          '"Cascadia Code"',
+          '"JetBrains Mono"',
+          'Consolas',
+          'ui-monospace',
+          'monospace',
+        ],
+      },
+      boxShadow: {
+        panel: '0 24px 80px rgba(0, 0, 0, 0.34)',
       },
     },
   },

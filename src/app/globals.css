@@ -2,15 +2,113 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  @apply bg-orchard-950 text-mango-300 font-display;
-  background-image:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(245, 166, 35, 0.09), transparent),
-    radial-gradient(ellipse 60% 40% at 10% 100%, rgba(74, 157, 95, 0.06), transparent);
-  background-attachment: fixed;
+:root {
+  color-scheme: dark;
+  background: #070908;
 }
 
-/* Section headings read as stencilled crate markings. */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  @apply bg-scene-ink font-display text-slate-300 antialiased;
+  background-image:
+    radial-gradient(ellipse 70% 45% at 50% -12%, rgba(245, 166, 35, 0.08), transparent),
+    linear-gradient(180deg, #0b0f0d 0%, #070908 76%);
+}
+
+button,
+a,
+input,
+select,
+[tabindex] {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid #ffd27a;
+  outline-offset: 3px;
+}
+
+::selection {
+  color: #070908;
+  background: #ffd27a;
+}
+
+.app-shell {
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+}
+
+.status-page-content > .app-shell {
+  height: 100%;
+}
+
+.scene-atmosphere {
+  position: relative;
+  isolation: isolate;
+}
+
+.scene-atmosphere::before {
+  position: absolute;
+  z-index: -2;
+  inset: 0;
+  content: '';
+  pointer-events: none;
+  opacity: 0.28;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(to bottom, black, transparent 82%);
+}
+
+.scene-atmosphere::after {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  content: '';
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 78% 18%, rgba(245, 166, 35, 0.07), transparent 28%),
+    radial-gradient(circle at 15% 90%, rgba(74, 157, 95, 0.05), transparent 28%);
+}
+
+.scene-enter {
+  animation: focal-enter 360ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.context-pulse {
+  animation: context-pulse 520ms ease-out 1;
+}
+
+@keyframes focal-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes context-pulse {
+  50% {
+    transform: scale(1.35);
+    text-shadow: 0 0 12px rgba(74, 157, 95, 0.75);
+  }
+}
+
 .heading-stencil {
   @apply font-display font-bold uppercase tracking-[0.2em] text-mango-500;
 }
@@ -25,18 +123,26 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply rounded bg-mango-700/50;
+  @apply bg-slate-700;
 }
 
-/* Cinematics are decoration, never the only way to read a state change. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
+    scroll-behavior: auto !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     animation-delay: 0.01ms !important;
     transition-duration: 0.01ms !important;
     transition-delay: 0.01ms !important;
+  }
+
+  .scene-enter {
+    animation: none;
+  }
+
+  .context-pulse {
+    animation: none;
   }
 }

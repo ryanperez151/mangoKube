@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { CaseFile } from './CaseFile';
 import type { Fact, LogEvent } from '@/content/types';
@@ -30,6 +30,8 @@ const facts: Fact[] = [
 ];
 
 describe('CaseFile', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   it('shows the current objective', () => {
     render(
       <CaseFile objective="Confirm the alert." pinnedEvents={[]} facts={[]} onUnpin={() => {}} />
@@ -62,4 +64,22 @@ describe('CaseFile', () => {
     render(<CaseFile objective="o" pinnedEvents={[]} facts={[]} onUnpin={() => {}} />);
     expect(screen.getByTestId('empty-case-file')).toBeInTheDocument();
   });
+
+  it.each([false, true])(
+    'keeps evidence cards static when reduced motion is %s',
+    (prefersReducedMotion) => {
+      vi.stubGlobal(
+        'matchMedia',
+        vi.fn().mockImplementation(() => ({
+          matches: prefersReducedMotion,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+        }))
+      );
+      render(<CaseFile objective="o" pinnedEvents={[pinnedEvents[0]]} facts={facts} onUnpin={() => {}} />);
+
+      const evidenceCard = screen.getByRole('button', { name: /remove/i }).closest('li');
+      expect(evidenceCard?.getAttribute('style') ?? '').not.toMatch(/transform|translate|opacity/i);
+    }
+  );
 });

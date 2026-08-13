@@ -95,7 +95,7 @@ export const sentinelAttackMap: AttackMapNode[] = [
     label: 'Rogue cluster-admin account',
     tactic: 'Persistence',
     summary:
-      'A log-rotator service account and a log-rotator-admin cluster-admin binding were created in kube-system at 02:31 — a second way in, independent of ci-deploy-bot.',
+      'A maintenance-looking service account and a matching cluster-admin binding were created in kube-system at 02:31, creating a second way in independent of ci-deploy-bot.',
     lesson:
       'Containment that stops at the entry point is not eradication. An attacker with cluster-admin creates their own identities, so hunting persistence has to precede revocation.',
     prevention:

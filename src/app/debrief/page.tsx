@@ -5,13 +5,19 @@ import { useRouter } from 'next/navigation';
 import { useSimStore, useHasHydrated } from '@/engine/store';
 import { chapter1Campaigns } from '@/content/chapter1';
 import { DebriefPanel } from '@/components/DebriefPanel/DebriefPanel';
+import { AppFrame, DesktopGate } from '@/components/Cinematic/Cinematic';
+import { PersistenceStatusNotice } from '@/components/PersistenceStatus/PersistenceStatus';
 
-export default function DebriefPage() {
+function DebriefExperience() {
   const router = useRouter();
   const campaignId = useSimStore((state) => state.campaignId);
   const campaign = useSimStore((state) => state.campaign);
+  const stageIndex = useSimStore((state) => state.stageIndex);
+  const decisions = useSimStore((state) => state.decisions);
+  const collectedFacts = useSimStore((state) => state.collectedFacts);
+  const clusterStatus = useSimStore((state) => state.clusterStatus);
   const hydrateCampaign = useSimStore((state) => state.hydrateCampaign);
-  const resetProgress = useSimStore((state) => state.resetProgress);
+  const startCampaign = useSimStore((state) => state.startCampaign);
   const hasHydrated = useHasHydrated();
 
   useEffect(() => {
@@ -30,22 +36,45 @@ export default function DebriefPage() {
     }
   }, [hasHydrated, campaignId, campaign, hydrateCampaign]);
 
-  if (!hasHydrated || !campaignId || !campaign) {
-    return null;
+  useEffect(() => {
+    const state = useSimStore.getState();
+    const persistedCampaign = state.campaignId ? chapter1Campaigns[state.campaignId] : null;
+    if (hasHydrated && persistedCampaign && state.stageIndex < persistedCampaign.stages.length) {
+      router.replace('/mission');
+    }
+  }, [hasHydrated, campaignId, stageIndex, router]);
+
+  if (!hasHydrated || !campaignId || !campaign || stageIndex < campaign.stages.length) {
+    return <AppFrame message="Reconstructing operation debrief" />;
   }
 
-  function handleRestart() {
-    resetProgress();
-    router.push('/campaign-select');
+  function begin(role: 'sentinel' | 'infiltrator') {
+    if (!window.confirm('Replace completed progress and begin this role at stage 1?')) return;
+    startCampaign(chapter1Campaigns[role]);
+    router.push('/mission');
   }
 
   return (
     <DebriefPanel
-      narrative={campaign.debrief.narrative}
-      lesson={campaign.debrief.lesson}
-      detection={campaign.debrief.detection}
-      nextChapterTeaser={campaign.debrief.nextChapterTeaser}
-      onRestart={handleRestart}
+      campaign={campaign}
+      decisions={decisions}
+      collectedFacts={collectedFacts}
+      clusterStatus={clusterStatus}
+      onReplay={() => begin(campaignId)}
+      onOtherRole={() => begin(campaignId === 'sentinel' ? 'infiltrator' : 'sentinel')}
     />
+  );
+}
+
+export default function DebriefPage() {
+  return (
+    <DesktopGate>
+      <div className="app-shell flex min-h-0 flex-col bg-scene-ink">
+        <PersistenceStatusNotice placement="inline" className="mx-4 mt-2" />
+        <div className="status-page-content h-0 min-h-0 flex-1 overflow-hidden">
+          <DebriefExperience />
+        </div>
+      </div>
+    </DesktopGate>
   );
 }
