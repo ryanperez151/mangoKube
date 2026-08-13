@@ -47,6 +47,7 @@ test('landing supports no-save and resumable flows', async ({ page }) => {
   await expect(page.getByText('Awaiting assignment')).toBeVisible();
   await activate(page, 'button', 'New operation');
   await activate(page, 'button', 'Deploy as The Infiltrator');
+  await activate(page, 'button', 'Begin the operation');
   await activate(page, 'button', 'Begin');
   const terminal = page.getByLabel('terminal input');
   await terminal.pressSequentially('kubectl get pods');
@@ -73,6 +74,10 @@ test('direct campaign selection confirms replacement and cancellation preserves 
 
   page.once('dialog', async (dialog) => dialog.accept());
   await activate(page, 'button', 'Deploy as The Infiltrator');
+  // The seeded save has only read the Sentinel primer, so the Infiltrator's
+  // still gates.
+  await expect(page).toHaveURL(/primer/);
+  await activate(page, 'button', 'Begin the operation');
   await expect(page).toHaveURL(/mission/);
   await expect(page.getByRole('main', { name: 'Operation briefing' })).toBeVisible();
 });

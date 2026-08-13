@@ -26,6 +26,8 @@ export interface PersistedProgress {
   guidanceLevelByStage: Record<string, GuidanceLevel>;
   failedAttemptsByStage: Record<string, number>;
   seenBriefingIds: string[];
+  /** Campaign ids whose familiarization primer has been read. */
+  seenPrimerIds: string[];
   pendingStageResolution: PendingStageResolution | null;
 }
 
@@ -45,6 +47,7 @@ export const initialPersistedProgress: PersistedProgress = {
   guidanceLevelByStage: {},
   failedAttemptsByStage: {},
   seenBriefingIds: [],
+  seenPrimerIds: [],
   pendingStageResolution: null,
 };
 
@@ -66,6 +69,7 @@ const CLUSTER_EDGE_IDS = new Set([
   'ci-deploy-bot-to-clusteradmin',
   'log-rotator-to-clusteradmin',
 ]);
+const CAMPAIGN_IDS: ReadonlySet<string> = new Set<CampaignId>(['sentinel', 'infiltrator']);
 let status: PersistenceStatus = READY;
 const listeners = new Set<() => void>();
 
@@ -102,6 +106,12 @@ function asRecord(value: unknown): Record<string, unknown> {
 }
 
 const PERSISTED_PROGRESS_KEYS = new Set(Object.keys(initialPersistedProgress));
+/**
+ * Keys added after v2 shipped. A save written before they existed is still a
+ * genuine, readable save — treating its absence as corruption would discard
+ * real progress and show the player a recovery warning for nothing.
+ */
+const OPTIONAL_PROGRESS_KEYS = new Set(['seenPrimerIds']);
 const SAFE_DECISION_DEFAULTS: Record<CampaignId, Readonly<Record<string, string>>> = {
   sentinel: { 'containment-timing': 'hunt-first' },
   infiltrator: { 'operational-order': 'exfil-first' },
@@ -114,9 +124,11 @@ export function safeDecisionDefault(campaignId: CampaignId, decisionId: string):
 function isCanonicalEmptyProgress(source: Record<string, unknown>): boolean {
   const keys = Object.keys(source);
   if (
-    keys.length !== PERSISTED_PROGRESS_KEYS.size ||
     keys.some((key) => !PERSISTED_PROGRESS_KEYS.has(key)) ||
-    [...PERSISTED_PROGRESS_KEYS].some((key) => !Object.prototype.hasOwnProperty.call(source, key))
+    [...PERSISTED_PROGRESS_KEYS].some(
+      (key) =>
+        !OPTIONAL_PROGRESS_KEYS.has(key) && !Object.prototype.hasOwnProperty.call(source, key)
+    )
   ) return false;
 
   const emptyArrays = [
@@ -127,6 +139,7 @@ function isCanonicalEmptyProgress(source: Record<string, unknown>): boolean {
     source.revealedEdgeIds,
     source.pinnedEvidence,
     source.seenBriefingIds,
+    source.seenPrimerIds ?? [],
   ];
   const emptyRecords = [
     source.decisions,
@@ -284,6 +297,7 @@ export function normalizePersistedProgress(value: unknown): {
       guidanceLevelByStage,
       failedAttemptsByStage,
       seenBriefingIds: uniqueKnownStrings(source.seenBriefingIds, stageIds),
+      seenPrimerIds: uniqueKnownStrings(source.seenPrimerIds, CAMPAIGN_IDS),
       pendingStageResolution,
     },
     issue: recovered ? 'recovered' : 'none',

@@ -14,7 +14,14 @@ describe('infiltratorCampaign', () => {
     for (const stage of infiltratorCampaign.stages) {
       expect(stage.objectiveSteps?.length, `stage "${stage.id}" has no objective steps`).toBeGreaterThan(0);
       expect(stage.objectiveSteps?.every((step) => step.requiresFacts.length > 0)).toBe(true);
-      expect(stage.guidance?.map((step) => step.level), `stage "${stage.id}" has incomplete guidance`).toEqual([1, 2, 3]);
+      // A stage may offer route-specific tiers, so completeness is judged per
+      // route: whichever operational order is in play must still see 1, 2, 3.
+      for (const optionId of ['exfil-first', 'persistence-first'] as const) {
+        const levels = (stage.guidance ?? [])
+          .filter((step) => isChoiceVisible(step.visibleWhen, { 'operational-order': optionId }))
+          .map((step) => step.level);
+        expect(levels, `stage "${stage.id}" has incomplete guidance on ${optionId}`).toEqual([1, 2, 3]);
+      }
       expect(stage.resolution, `stage "${stage.id}" has no resolution`).toBeDefined();
       expect(stage.advanceWhen?.facts.length, `stage "${stage.id}" has no fact completion`).toBeGreaterThan(0);
       expect(stage.commands.some((command) => command.outcome.advances === true)).toBe(false);

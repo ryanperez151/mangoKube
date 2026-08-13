@@ -2,8 +2,11 @@
 
 import type { Campaign } from '@/content/types';
 import { resolveConditionalCopy } from '@/engine/conditions';
-import { deriveNodeState } from '@/engine/attackMap';
+import { chapter1AttackTimeline } from '@/content/chapter1/attackTimeline';
+import { sentinelAttackMap } from '@/content/chapter1/attackMap';
+import { sentinelLogCorpus } from '@/content/chapter1/logs';
 import { ActionButton, Panel, SceneShell, StatusBadge } from '@/components/Cinematic/Cinematic';
+import { AttackTimeline } from '@/components/DebriefPanel/AttackTimeline';
 
 type ClusterStatus = 'nominal' | 'suspicious' | 'compromised' | 'contained';
 
@@ -24,7 +27,6 @@ export function DebriefPanel({
   onReplay,
   onOtherRole,
 }: DebriefPanelProps) {
-  const facts = new Set(collectedFacts);
   const narrative = [
     ...campaign.debrief.narrative,
     ...resolveConditionalCopy(campaign.conditionalDebrief, decisions),
@@ -38,11 +40,6 @@ export function DebriefPanel({
     const fact = campaign.factLibrary[factId];
     return fact ? [fact] : [];
   });
-  const attackChain = (campaign.attackMap ?? []).flatMap((node) => {
-    const state = deriveNodeState(node, facts);
-    return state === 'undiscovered' ? [] : [{ node, state }];
-  });
-
   return (
     <SceneShell
       label="Operation outcome debrief"
@@ -81,22 +78,14 @@ export function DebriefPanel({
           </div>
         </section>
 
-        {campaign.id === 'sentinel' && (
-          <section aria-labelledby="chain-heading">
-            <h2 id="chain-heading" className="font-display text-2xl font-bold uppercase tracking-[0.07em] text-slate-100">
-              Reconstructed attack chain
-            </h2>
-            <ol className="mt-3 grid gap-2 lg:grid-cols-2">
-              {attackChain.map(({ node, state }, index) => (
-                <li key={node.id} className="border-l-2 border-leaf-500/50 bg-white/[0.025] p-4">
-                  <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-slate-400">{String(index + 1).padStart(2, '0')} / {node.tactic} / {state}</p>
-                  <h3 className="mt-1 text-base font-semibold text-slate-100">{node.label}</h3>
-                  <p className="mt-1 text-sm leading-6 text-slate-400">{node.summary}</p>
-                </li>
-              ))}
-            </ol>
-          </section>
-        )}
+        <AttackTimeline
+          campaignId={campaign.id}
+          timeline={chapter1AttackTimeline}
+          corpus={sentinelLogCorpus}
+          nodes={sentinelAttackMap}
+          decisions={decisions}
+          collectedFacts={collectedFacts}
+        />
 
         <section aria-labelledby="findings-heading">
           <div className="flex flex-wrap items-center justify-between gap-2">

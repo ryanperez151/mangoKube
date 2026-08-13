@@ -41,15 +41,24 @@ describe('CampaignSelectPage', () => {
     expect(sentinelIdentity.className).not.toMatch(/text-(mango|leaf)/);
   });
 
-  it('starts the selected campaign and enters the mission', () => {
+  it('starts the selected campaign and gates the primer on a first run', () => {
     const confirm = vi.spyOn(window, 'confirm');
     render(<CampaignSelectPage />);
 
     fireEvent.click(screen.getByRole('button', { name: /deploy as the sentinel/i }));
 
     expect(useSimStore.getState().campaignId).toBe('sentinel');
-    expect(push).toHaveBeenCalledWith('/mission');
+    expect(push).toHaveBeenCalledWith('/primer');
     expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it('skips straight to the mission once that role’s primer has been read', () => {
+    useSimStore.getState().markPrimerSeen('sentinel');
+    render(<CampaignSelectPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: /deploy as the sentinel/i }));
+
+    expect(push).toHaveBeenCalledWith('/mission');
   });
 
   it.each([0, chapter1Campaigns.sentinel.stages.length])(
@@ -79,7 +88,7 @@ describe('CampaignSelectPage', () => {
 
     expect(useSimStore.getState().campaignId).toBe('infiltrator');
     expect(useSimStore.getState().stageIndex).toBe(0);
-    expect(push).toHaveBeenCalledWith('/mission');
+    expect(push).toHaveBeenCalledWith('/primer');
   });
 
   it('offers safe recovery when corrupt progress arrives directly on this route', async () => {

@@ -1,18 +1,12 @@
 'use client';
 
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type RefObject,
-} from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSimStore, useHasHydrated } from '@/engine/store';
 import { canChooseDecision, isChoiceVisible } from '@/engine/conditions';
 import { chapter1Campaigns } from '@/content/chapter1';
-import type { GuidanceStep, LogEvent, ObjectiveStep, Stage } from '@/content/types';
+import type { LogEvent, ObjectiveStep } from '@/content/types';
+import { GuidancePanel } from '@/components/Guidance/GuidancePanel';
 import { Terminal } from '@/components/Terminal/Terminal';
 import { ClusterDiagram } from '@/components/ClusterDiagram/ClusterDiagram';
 import { LogExplorer } from '@/components/LogExplorer/LogExplorer';
@@ -32,18 +26,11 @@ import {
 import { BriefingScene, DecisionScene, StageResolutionScene } from '@/components/Cinematic/Scenes';
 import { PersistenceStatusNotice } from '@/components/PersistenceStatus/PersistenceStatus';
 
-type ContextTab = 'evidence' | 'attack-path' | 'objectives' | 'cluster';
+type ContextTab = 'evidence' | 'attack-path' | 'objectives' | 'cluster' | 'guidance';
 type InputTarget = 'search' | 'terminal';
 
 function roleLabel(role: 'sentinel' | 'infiltrator') {
   return role === 'sentinel' ? 'Sentinel' : 'Infiltrator';
-}
-
-function firstInlineCode(lines: readonly string[]): string | undefined {
-  for (const line of lines) {
-    const match = line.match(/`([^`]+)`/);
-    if (match) return match[1];
-  }
 }
 
 function ObjectiveList({
@@ -79,104 +66,6 @@ function ObjectiveList({
   );
 }
 
-function MissionHelp({
-  open,
-  guidance,
-  level,
-  insertText,
-  inputTarget,
-  onClose,
-  onInsert,
-  onReplay,
-  returnFocusRef,
-}: {
-  open: boolean;
-  guidance: GuidanceStep | undefined;
-  level: number;
-  insertText: string | undefined;
-  inputTarget: InputTarget;
-  onClose: () => void;
-  onInsert: (text: string) => void;
-  onReplay: () => void;
-  returnFocusRef: RefObject<HTMLButtonElement>;
-}) {
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const firstActionRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (open) firstActionRef.current?.focus();
-  }, [open]);
-
-  if (!open) return null;
-
-  function close() {
-    onClose();
-    queueMicrotask(() => returnFocusRef.current?.focus());
-  }
-
-  function keepFocusInside(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key === 'Escape') {
-      close();
-      return;
-    }
-    if (event.key !== 'Tab' || !dialogRef.current) return;
-    const focusable = Array.from(
-      dialogRef.current.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
-      )
-    );
-    if (focusable.length === 0) return;
-    const first = focusable[0];
-    const last = focusable.at(-1)!;
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-8">
-      <Panel
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="mission-help-title"
-        tabIndex={-1}
-        onKeyDown={keepFocusInside}
-        className="w-full max-w-xl p-6"
-      >
-        <div className="flex items-center justify-between gap-4 border-b border-white/10 pb-4">
-          <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-slate-400">
-              Guidance tier {level}
-            </p>
-            <h2 id="mission-help-title" className="mt-1 font-display text-2xl font-bold uppercase tracking-[0.08em] text-slate-100">
-              Mission help
-            </h2>
-          </div>
-          <ActionButton ref={firstActionRef} variant="quiet" onClick={close}>Close help</ActionButton>
-        </div>
-        <div className="mt-5 space-y-3 text-base leading-7 text-slate-300">
-          {(guidance?.lines ?? ['Review the current objective and established facts.']).map((line) => (
-            <p key={line}>{line}</p>
-          ))}
-        </div>
-        <div className="mt-6 flex flex-wrap gap-3 border-t border-white/10 pt-5">
-          {level === 3 && insertText && (
-            <ActionButton onClick={() => onInsert(insertText)}>
-              Insert into {inputTarget}
-            </ActionButton>
-          )}
-          <ActionButton variant="secondary" onClick={onReplay}>Replay briefing</ActionButton>
-        </div>
-      </Panel>
-    </div>
-  );
-}
-
 function MissionExperience() {
   const router = useRouter();
   const campaignId = useSimStore((state) => state.campaignId);
@@ -205,7 +94,6 @@ function MissionExperience() {
   const recordAttempt = useSimStore((state) => state.recordAttempt);
   const resetProgress = useSimStore((state) => state.resetProgress);
   const [replayBriefing, setReplayBriefing] = useState(false);
-  const [helpOpen, setHelpOpen] = useState(false);
   const [terminalDraft, setTerminalDraft] = useState('');
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [contextTab, setContextTab] = useState<ContextTab>(
@@ -214,7 +102,7 @@ function MissionExperience() {
   const [newFindingCount, setNewFindingCount] = useState(0);
   const [discoveryMessage, setDiscoveryMessage] = useState('');
   const [queryInsertion, setQueryInsertion] = useState<{ id: number; text: string }>();
-  const [focusInputAfterHelp, setFocusInputAfterHelp] = useState<InputTarget | null>(null);
+  const [focusInputAfterInsert, setFocusInputAfterInsert] = useState<InputTarget | null>(null);
   const [decisionJustResolved, setDecisionJustResolved] = useState(false);
   const helpButtonRef = useRef<HTMLButtonElement>(null);
   const workspaceHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -231,7 +119,6 @@ function MissionExperience() {
 
   useEffect(() => {
     setReplayBriefing(false);
-    setHelpOpen(false);
     setTerminalDraft('');
     setSelectedEventId(null);
     setNewFindingCount(0);
@@ -242,19 +129,11 @@ function MissionExperience() {
   }, [stageIndex, campaignId]);
 
   useEffect(() => {
-    const workspaceContent = workspaceContentRef.current;
-    if (!workspaceContent) return;
-    if (helpOpen) workspaceContent.setAttribute('inert', '');
-    else workspaceContent.removeAttribute('inert');
-    return () => workspaceContent.removeAttribute('inert');
-  }, [helpOpen]);
-
-  useEffect(() => {
-    if (helpOpen || !focusInputAfterHelp) return;
-    const inputLabel = focusInputAfterHelp === 'terminal' ? 'terminal input' : 'search query';
+    if (!focusInputAfterInsert) return;
+    const inputLabel = focusInputAfterInsert === 'terminal' ? 'terminal input' : 'search query';
     document.querySelector<HTMLInputElement>(`input[aria-label="${inputLabel}"]`)?.focus();
-    setFocusInputAfterHelp(null);
-  }, [helpOpen, focusInputAfterHelp]);
+    setFocusInputAfterInsert(null);
+  }, [focusInputAfterInsert]);
 
   useEffect(() => {
     if (campaign && stageIndex >= campaign.stages.length) router.push('/debrief');
@@ -294,14 +173,14 @@ function MissionExperience() {
   const usesTerminal = !isSentinel || Boolean(stage?.commands.length);
   const inputTarget: InputTarget = usesTerminal ? 'terminal' : 'search';
   const guidanceLevel = stage ? guidanceLevelByStage[stage.id] ?? 0 : 0;
-  const highestGuidance = stage?.guidance?.find(
-    (step) => step.level === guidanceLevel && isChoiceVisible(step.visibleWhen, decisions)
+  /** Only the tiers this decision route offers, in escalation order. */
+  const stageGuidance = useMemo(
+    () =>
+      (stage?.guidance ?? [])
+        .filter((step) => isChoiceVisible(step.visibleWhen, decisions))
+        .sort((a, b) => a.level - b.level),
+    [stage, decisions]
   );
-  const insertText =
-    highestGuidance?.insertText ??
-    (inputTarget === 'terminal'
-      ? availableCommands[0]?.description
-      : firstInlineCode(highestGuidance?.lines ?? []));
   const resolvedDecision = campaign?.stages
     .flatMap((candidate) =>
       candidate.decision
@@ -360,21 +239,16 @@ function MissionExperience() {
     if (isNewFact && event.revealsFact) announceFact(event.revealsFact);
   }
 
+  /** The header Help button is a shortcut to the tab, not a second surface. */
   function openHelp() {
-    requestGuidance();
-    setHelpOpen(true);
-  }
-
-  function replayFromHelp() {
-    setHelpOpen(false);
-    setReplayBriefing(true);
+    selectContext('guidance');
+    queueMicrotask(() => document.getElementById('context-tab-guidance')?.focus());
   }
 
   function insertGuidance(text: string) {
     if (inputTarget === 'terminal') setTerminalDraft(text);
     else setQueryInsertion((current) => ({ id: (current?.id ?? 0) + 1, text }));
-    setFocusInputAfterHelp(inputTarget);
-    setHelpOpen(false);
+    setFocusInputAfterInsert(inputTarget);
   }
 
   function selectContext(tab: ContextTab) {
@@ -387,8 +261,8 @@ function MissionExperience() {
   function moveContextTab(event: KeyboardEvent<HTMLDivElement>) {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
     const tabs: readonly ContextTab[] = isSentinel
-      ? ['evidence', 'attack-path']
-      : ['objectives', 'cluster'];
+      ? ['evidence', 'attack-path', 'guidance']
+      : ['objectives', 'cluster', 'guidance'];
     const currentIndex = tabs.indexOf(contextTab);
     const nextIndex =
       event.key === 'Home'
@@ -498,6 +372,17 @@ function MissionExperience() {
                   <TabButton id="context-tab-cluster" aria-controls="context-panel" active={contextTab === 'cluster'} onClick={() => selectContext('cluster')}>Cluster</TabButton>
                 </>
               )}
+              <TabButton
+                id="context-tab-guidance"
+                aria-controls="context-panel"
+                active={contextTab === 'guidance'}
+                onClick={() => selectContext('guidance')}
+              >
+                Guidance
+                {guidanceLevel > 0 && (
+                  <span className="ml-2 inline-block text-mango-300">{guidanceLevel}</span>
+                )}
+              </TabButton>
             </div>
             <div id="context-panel" role="tabpanel" aria-labelledby={`context-tab-${contextTab}`} data-testid="context-viewport" className="min-h-0 flex-1 overflow-y-auto p-4">
               {contextTab === 'evidence' && (
@@ -544,6 +429,18 @@ function MissionExperience() {
                   status={clusterStatus}
                 />
               )}
+              {contextTab === 'guidance' && (
+                <GuidancePanel
+                  objective={stage.objective}
+                  guidance={stageGuidance}
+                  level={guidanceLevel}
+                  inputTarget={inputTarget}
+                  primer={campaign.primer}
+                  onReveal={requestGuidance}
+                  onInsert={insertGuidance}
+                  onReplayBriefing={() => setReplayBriefing(true)}
+                />
+              )}
             </div>
           </Panel>
         </div>
@@ -558,17 +455,6 @@ function MissionExperience() {
         {discoveryMessage}
       </div>
 
-      <MissionHelp
-        open={helpOpen}
-        guidance={highestGuidance}
-        level={guidanceLevel}
-        insertText={insertText}
-        inputTarget={inputTarget}
-        onClose={() => setHelpOpen(false)}
-        onInsert={insertGuidance}
-        onReplay={replayFromHelp}
-        returnFocusRef={helpButtonRef}
-      />
     </main>
   );
 }

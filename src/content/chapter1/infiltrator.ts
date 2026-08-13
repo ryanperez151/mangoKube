@@ -1,4 +1,5 @@
 import type { Campaign } from '../types';
+import { infiltratorPrimer } from './primer';
 
 export const infiltratorCampaign: Campaign = {
   id: 'infiltrator',
@@ -9,6 +10,7 @@ export const infiltratorCampaign: Campaign = {
     primaryMechanic: 'Chain fact-gated terminal actions while choosing an operational order.',
     learningFocus: 'How excessive RBAC turns one workload identity into theft and durable persistence.',
   },
+  primer: infiltratorPrimer,
   factLibrary: {
     'found-implant-pod': { id: 'found-implant-pod', label: 'Implant pod located', detail: "The dormant implant survived inside 'ci-deploy-bot', a CI/CD pod nobody's watching closely." },
     'found-sa-permissions': { id: 'found-sa-permissions', label: 'Service account permissions enumerated', detail: 'ci-deploy-bot can impersonate service accounts, read secrets, exec into pods, and deploy — far beyond a build job’s needs.' },
@@ -36,9 +38,28 @@ export const infiltratorCampaign: Campaign = {
         { id: 'capture-token', label: 'Capture the service account token from the pod.', requiresFacts: ['captured-ci-token'] },
       ],
       guidance: [
-        { level: 1, lines: ['Start with the workloads already running in the cluster.'] },
-        { level: 2, lines: ['Once the implant is located, inspect what its identity can do before using it.'] },
-        { level: 3, lines: ['Run `kubectl get pods`, `kubectl auth can-i --list`, then read the mounted service account token.'] },
+        {
+          level: 1,
+          lines: [
+            'You have a shell in a container and nothing else. Before touching anything sensitive, work out where you are standing and what this identity is permitted to do.',
+          ],
+        },
+        {
+          level: 2,
+          lines: [
+            'List the workloads in the namespace first — you need to know which pod you actually landed in.',
+            'Then ask the cluster what your identity may do. Kubernetes will enumerate your own permissions honestly if you ask it, which is faster and far quieter than probing for them one at a time.',
+            'Last, take the credential itself. Every pod has its service account token mounted at a fixed path on disk.',
+          ],
+        },
+        {
+          level: 3,
+          lines: [
+            'Run `kubectl get pods`, then `kubectl auth can-i --list`.',
+            'Then read the token with `cat /var/run/secrets/kubernetes.io/serviceaccount/token` — the same path in every pod, in every cluster.',
+          ],
+          insertText: 'kubectl get pods',
+        },
       ],
       resolution: { title: 'Foothold assessed', summary: ['The implant runs as a CI account with reach no build pod should possess.'] },
       clusterInitial: { status: 'nominal' }, advanceWhen: { facts: ['found-implant-pod', 'found-sa-permissions', 'captured-ci-token'] },
@@ -58,9 +79,27 @@ export const infiltratorCampaign: Campaign = {
         { id: 'confirm-role', label: 'Confirm what the bound cluster-admin role permits.', requiresFacts: ['confirmed-cluster-admin'] },
       ],
       guidance: [
-        { level: 1, lines: ['The account object identifies the subject; bindings explain its power.'] },
-        { level: 2, lines: ['Find the ClusterRoleBinding, then inspect the role it grants.'] },
-        { level: 3, lines: ['Run `kubectl get serviceaccount ci-deploy-bot -o yaml`, `kubectl get clusterrolebindings`, and `kubectl describe clusterrole cluster-admin`.'] },
+        {
+          level: 1,
+          lines: [
+            'You are holding a token for an account called ci-deploy-bot. The name tells you nothing useful — what matters is which role has been bound to it.',
+          ],
+        },
+        {
+          level: 2,
+          lines: [
+            'Inspect the service account object first, to confirm the identity and the namespace it belongs to.',
+            'Then list the cluster-wide bindings. A binding is the object that actually grants power, and it names both the account and the role on one line.',
+            'When you see which role it points at, read that role to find out what it permits.',
+          ],
+        },
+        {
+          level: 3,
+          lines: [
+            'Run `kubectl get serviceaccount ci-deploy-bot -o yaml`, then `kubectl get clusterrolebindings`, then `kubectl describe clusterrole cluster-admin`.',
+          ],
+          insertText: 'kubectl get serviceaccount ci-deploy-bot -o yaml',
+        },
       ],
       resolution: { title: 'Privilege shortcut exposed', summary: ['A migration-era CI account is bound directly to unrestricted cluster-admin.'] },
       clusterInitial: { highlightNodeIds: ['ci-deploy-bot'], status: 'suspicious' }, advanceWhen: { facts: ['found-sa-object', 'found-clusteradmin-binding', 'confirmed-cluster-admin'] },
@@ -80,9 +119,27 @@ export const infiltratorCampaign: Campaign = {
         { id: 'verify-authority', label: 'Verify the identity can make destructive cluster changes.', requiresFacts: ['verified-cluster-admin'] },
       ],
       guidance: [
-        { level: 1, lines: ['Use the token before attempting a sensitive read.'] },
-        { level: 2, lines: ['A cluster-admin identity can enumerate secrets across namespaces.'] },
-        { level: 3, lines: ['Set credentials with the token, list `kubectl get secrets -A`, then test `kubectl auth can-i delete nodes`.'] },
+        {
+          level: 1,
+          lines: [
+            'Knowing the account is cluster-admin is not the same as using it. Put the stolen token to work, then find out what it really reaches.',
+          ],
+        },
+        {
+          level: 2,
+          lines: [
+            'Register the token as your credential. This is an edit to a local config file — the cluster never sees it happen, so it costs you nothing.',
+            'Then use it: list secrets across every namespace at once to find what is worth taking.',
+            'Confirm the ceiling of what you hold by testing a destructive permission you have no intention of using.',
+          ],
+        },
+        {
+          level: 3,
+          lines: [
+            'Run `kubectl config set-credentials attacker --token=<ci-deploy-bot-token>`, then `kubectl get secrets -A`, then `kubectl auth can-i delete nodes`.',
+          ],
+          insertText: 'kubectl config set-credentials attacker --token=<ci-deploy-bot-token>',
+        },
       ],
       resolution: { title: 'Cluster control verified', summary: ['The stolen CI identity can read protected data and delete cluster nodes.'] },
       clusterInitial: { highlightNodeIds: ['ci-deploy-bot', 'cluster-admin-binding'], revealEdgeIds: ['ci-deploy-bot-to-clusteradmin'], status: 'suspicious' }, advanceWhen: { facts: ['using-stolen-token', 'located-ip-secrets', 'verified-cluster-admin'] },
@@ -106,9 +163,47 @@ export const infiltratorCampaign: Campaign = {
         { id: 'bind-backdoor-account', label: 'Bind the backdoor account to cluster-admin.', requiresFacts: ['persistence-binding-created'] },
       ],
       guidance: [
-        { level: 1, lines: ['The job requires both theft and a return path.'] },
-        { level: 2, lines: ['Your chosen order determines which action unlocks first, but both routes need the same three facts.'] },
-        { level: 3, lines: ['Follow the available commands: the selected route gates the alternate operation until the required fact exists.'] },
+        {
+          level: 1,
+          lines: [
+            'Two jobs remain: take the genome, and make sure you can come back after they notice the pod you are sitting in.',
+            'The order you chose decides which unlocks first. Both still have to be done.',
+          ],
+        },
+        {
+          level: 2,
+          lines: [
+            'You chose the theft first. Read the genome straight out of the product namespace — cluster-admin ignores namespace boundaries entirely.',
+            'Then build the return path: a new service account, and a binding that gives it cluster-admin of its own. Name it after something routine.',
+          ],
+          visibleWhen: { 'operational-order': 'exfil-first' },
+        },
+        {
+          level: 2,
+          lines: [
+            'You chose the return path first. Create the service account, then bind it to cluster-admin — a binding without an account to attach is useless, so the order is fixed.',
+            'Once the second identity exists and is empowered, go back for the genome.',
+          ],
+          visibleWhen: { 'operational-order': 'persistence-first' },
+        },
+        {
+          level: 3,
+          lines: [
+            "Run `kubectl get secret ultra-mango-genome-db -o jsonpath='{.data}' | base64 -d` first.",
+            'Then `kubectl create serviceaccount log-rotator -n kube-system`, then bind it with `kubectl create clusterrolebinding log-rotator-admin --clusterrole=cluster-admin --serviceaccount=kube-system:log-rotator`.',
+          ],
+          insertText: "kubectl get secret ultra-mango-genome-db -o jsonpath='{.data}' | base64 -d",
+          visibleWhen: { 'operational-order': 'exfil-first' },
+        },
+        {
+          level: 3,
+          lines: [
+            'Run `kubectl create serviceaccount log-rotator -n kube-system` first, then `kubectl create clusterrolebinding log-rotator-admin --clusterrole=cluster-admin --serviceaccount=kube-system:log-rotator`.',
+            "With the way back in secured, take the genome: `kubectl get secret ultra-mango-genome-db -o jsonpath='{.data}' | base64 -d`.",
+          ],
+          insertText: 'kubectl create serviceaccount log-rotator -n kube-system',
+          visibleWhen: { 'operational-order': 'persistence-first' },
+        },
       ],
       decision: {
         id: 'operational-order', timing: 'before-stage', prompt: 'Which risk do you accept first: exposure during theft or exposure before persistence is planted?',
@@ -143,9 +238,26 @@ export const infiltratorCampaign: Campaign = {
         { id: 'complete-handoff', label: 'Confirm the theft and foothold to the handler.', requiresFacts: ['handoff-complete'] },
       ],
       guidance: [
-        { level: 1, lines: ['The quiet backdoor remains; remove only the noisy original implant.'] },
-        { level: 2, lines: ['Delete ci-deploy-bot, then log the completed handoff.'] },
-        { level: 3, lines: ['Run the force-delete command for the pod, then `echo "handoff complete"`.'] },
+        {
+          level: 1,
+          lines: [
+            'The loud implant has done its job and the quiet one is already in place. Remove what you no longer need, then close out.',
+          ],
+        },
+        {
+          level: 2,
+          lines: [
+            'Delete the original build pod — the one whose shell started all this. The backdoor account in kube-system is a separate object and is untouched by that.',
+            'A forced pod delete is the single loudest action in the operation, which is exactly why it goes last.',
+          ],
+        },
+        {
+          level: 3,
+          lines: [
+            'Run `kubectl delete pod ci-deploy-bot-7f9c4d6b6-x2k1p --grace-period=0 --force`, then `echo "handoff complete"`.',
+          ],
+          insertText: 'kubectl delete pod ci-deploy-bot-7f9c4d6b6-x2k1p --grace-period=0 --force',
+        },
       ],
       resolution: { title: 'Operation complete', summary: ['The original implant is gone, the backdoor persists, and Citrus Dynamics has the genome.'] },
       clusterInitial: { highlightNodeIds: ['log-rotator'], revealEdgeIds: ['log-rotator-to-clusteradmin'], status: 'compromised' }, advanceWhen: { facts: ['covered-tracks', 'handoff-complete'] },

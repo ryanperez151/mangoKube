@@ -1,6 +1,7 @@
 import type { Campaign } from '../types';
 import { sentinelAttackMap } from './attackMap';
 import { sentinelLogCorpus, TIME_RANGES } from './logs';
+import { sentinelPrimer } from './primer';
 
 const IMPLANT_POD = 'ci-deploy-bot-7f9c4d6b6-x2k1p';
 
@@ -13,6 +14,7 @@ export const sentinelCampaign: Campaign = {
     primaryMechanic: 'Corroborate SIEM evidence, then execute a fact-gated containment runbook.',
     learningFocus: 'Least-privilege RBAC, evidence corroboration, and persistence-aware containment.',
   },
+  primer: sentinelPrimer,
   logCorpus: sentinelLogCorpus,
   attackMap: sentinelAttackMap,
   timeRanges: TIME_RANGES,
@@ -42,9 +44,28 @@ export const sentinelCampaign: Campaign = {
         { id: 'corroborate-exec', label: 'Corroborate it with an off-hours exec record.', requiresFacts: ['evidence-offhours-exec'] },
       ],
       guidance: [
-        { level: 1, lines: ['Start with the endpoint alert; it knows which process ran.'] },
-        { level: 2, lines: ['Then look for Kubernetes exec activity against that same pod.'] },
-        { level: 3, lines: ['Search `source=edr severity=high`, then `source=k8s-audit resource=pods/exec`.'] },
+        {
+          level: 1,
+          lines: [
+            'Two systems watched this from different angles: one inside the container, one at the cluster API. You want both to agree before calling it an intrusion.',
+            'Start with whichever one has already raised its hand.',
+          ],
+        },
+        {
+          level: 2,
+          lines: [
+            'The endpoint source records processes starting inside containers and stamps a severity on the ones it considers dangerous — the fastest route to whatever opened this ticket.',
+            'Then corroborate. If someone opened a shell, the cluster API should also hold the exec request that created it: same pod, same minute, different system.',
+          ],
+        },
+        {
+          level: 3,
+          lines: [
+            'Search `source=edr severity=high` to find the shell, then `source=k8s-audit resource=pods/exec` for the API call that asked for it.',
+            'Pin both. One is what happened inside the container; the other is who requested it, and from where.',
+          ],
+          insertText: 'source=edr severity=high',
+        },
       ],
       resolution: { title: 'Confirmed intrusion', summary: ['Two independent sources agree: this is an interactive intrusion, not a broken build.'] },
       clusterInitial: { status: 'nominal' }, advanceWhen: { facts: ['evidence-interactive-shell', 'evidence-offhours-exec'] }, commands: [],
@@ -59,9 +80,29 @@ export const sentinelCampaign: Campaign = {
         { id: 'trace-origin', label: 'Trace when the dangerous binding entered the cluster.', requiresFacts: ['evidence-binding-origin'] },
       ],
       guidance: [
-        { level: 1, lines: ['The identity is ordinary; its scope is not.'] },
-        { level: 2, lines: ['Use authorization records to connect the account to the rule that allowed it.'] },
-        { level: 3, lines: ['Search `user=ci-deploy-bot`, then widen to All time for `resource=clusterrolebindings`.'] },
+        {
+          level: 1,
+          lines: [
+            'You know something ran. Now establish what it ran as — and then the more important question, which is what that identity was allowed to do.',
+            'The account name will look unremarkable. The permissions attached to it are where this stops being routine.',
+          ],
+        },
+        {
+          level: 2,
+          lines: [
+            'Filter on the account you saw in the exec record and watch what it touched. A build account operating across every namespace at once is the anomaly, not the account itself.',
+            'Then let the cluster explain its own decision: the authorization source records which RBAC rule permitted a request, and names the binding outright.',
+            'One thing you need here is older than the window you are looking at.',
+          ],
+        },
+        {
+          level: 3,
+          lines: [
+            'Search `user=ci-deploy-bot` for what it touched, then `source=apiserver decision=allow` to get the binding by name.',
+            'For where that binding came from, switch the time range to All time and search `resource=clusterrolebindings`. It was created fourteen months ago, so the default one-hour window hides it completely — your query is not wrong, your window is.',
+          ],
+          insertText: 'user=ci-deploy-bot',
+        },
       ],
       resolution: { title: 'Blast radius established', summary: ['A migration-era cluster-admin binding turned one build workload into a whole-cluster incident.'] },
       clusterInitial: { status: 'suspicious' }, advanceWhen: { facts: ['evidence-sa-identity', 'evidence-clusteradmin-binding', 'evidence-binding-origin'] }, commands: [],
@@ -75,9 +116,27 @@ export const sentinelCampaign: Campaign = {
         { id: 'prove-egress', label: 'Prove the data crossed the cluster boundary.', requiresFacts: ['evidence-exfil-egress'] },
       ],
       guidance: [
-        { level: 1, lines: ['Access and exfiltration are different claims.'] },
-        { level: 2, lines: ['The audit log proves the read; endpoint telemetry proves the outbound transfer.'] },
-        { level: 3, lines: ['Search `source=k8s-audit resource=secrets` and `source=edr remoteIP=203.0.113.44`.'] },
+        {
+          level: 1,
+          lines: [
+            'Two separate questions, and answering them as one is the mistake: what did they reach, and did any of it actually leave the cluster?',
+          ],
+        },
+        {
+          level: 2,
+          lines: [
+            'The audit log proves the read — a get against the secret, with a success code on it. That establishes access, and nothing more.',
+            'It physically cannot tell you whether the data left. Only the endpoint source sees outbound connections, and it records the destination and how many bytes went to it.',
+          ],
+        },
+        {
+          level: 3,
+          lines: [
+            'Search `source=k8s-audit resource=secrets` for the read, then `source=edr remoteIP=203.0.113.44` for the transfer out.',
+            'Note the destination is the same address that opened the shell — that is what turns two events into one story.',
+          ],
+          insertText: 'source=k8s-audit resource=secrets',
+        },
       ],
       decision: {
         id: 'containment-timing', timing: 'after-stage', prompt: 'The account is still active. Contain immediately or hunt the likely persistence first?',
@@ -108,9 +167,27 @@ export const sentinelCampaign: Campaign = {
         { id: 'find-rogue-binding', label: 'Find the binding that gives it cluster-admin.', requiresFacts: ['evidence-rogue-binding'] },
       ],
       guidance: [
-        { level: 1, lines: ['An intruder with cluster-admin can create another identity.'] },
-        { level: 2, lines: ['Look for new service accounts and bindings in kube-system.'] },
-        { level: 3, lines: ['Search `source=k8s-audit verb=create namespace=kube-system` and `resource=clusterrolebindings verb=create`.'] },
+        {
+          level: 1,
+          lines: [
+            'An intruder holding cluster-admin has no further need of the pod you found them in. They can simply issue themselves a new identity.',
+            'Assume they did, and go looking for it before you close anything down.',
+          ],
+        },
+        {
+          level: 2,
+          lines: [
+            'New objects mean create verbs. The namespace worth searching is kube-system, where cluster-wide machinery lives and a maintenance-sounding name draws no attention.',
+            'There are two objects to find, not one: the account, and the binding that gives it power. The binding is the half that actually matters — an account with no binding can do nothing.',
+          ],
+        },
+        {
+          level: 3,
+          lines: [
+            'Search `source=k8s-audit verb=create namespace=kube-system` for what they made, then `resource=clusterrolebindings verb=create` for the binding that empowered it.',
+          ],
+          insertText: 'source=k8s-audit verb=create namespace=kube-system',
+        },
       ],
       resolution: { title: 'Persistence located', summary: ['The attacker created a second cluster-admin path. Removing only ci-deploy-bot would not have evicted them.'] },
       clusterInitial: { status: 'compromised' }, advanceWhen: { facts: ['evidence-rogue-sa', 'evidence-rogue-binding'] }, commands: [],
@@ -131,9 +208,37 @@ export const sentinelCampaign: Campaign = {
         { id: 'rotate-secret', label: 'Rotate the stolen genome secret.', requiresFacts: ['rotated-secret'] },
       ],
       guidance: [
-        { level: 1, lines: ['Bindings before accounts; privilege paths before artifacts.'] },
-        { level: 2, lines: ['Close the rogue binding, delete its account, remove the pod, then rotate the secret.'] },
-        { level: 3, lines: ['Follow the response commands in their unlocked order. The final secret deletion triggers a fresh issue.'] },
+        {
+          level: 1,
+          lines: [
+            'Order matters more than speed here. Anything still holding cluster-admin can recreate whatever you delete, so privilege paths come first and artifacts come last.',
+          ],
+        },
+        {
+          level: 2,
+          lines: [
+            'Delete bindings before the accounts they point at. A binding is what grants the power; an orphaned account is harmless, but an empowered one can rebuild everything you just removed.',
+            'Then the account, then the compromised workload, and the exposed secret last — rotating it is the only step that does not depend on the attacker already being gone.',
+          ],
+        },
+        {
+          level: 3,
+          lines: [
+            'Work down the Available list; each command unlocks the next. Start with `kubectl delete clusterrolebinding ci-deploy-bot-binding`, then close the attacker-created binding and its account.',
+            'Finish with `kubectl delete secret ultra-mango-genome-db -n product` — the platform re-issues it immediately, which is what makes the stolen copy worthless.',
+          ],
+          insertText: 'kubectl delete clusterrolebinding ci-deploy-bot-binding',
+          visibleWhen: { 'containment-timing': 'hunt-first' },
+        },
+        {
+          level: 3,
+          lines: [
+            'You already revoked the original binding, so the attacker’s pivot identity is the live privilege path. Start with `kubectl delete clusterrolebinding metrics-reconciler-admin`, then remove the account behind it.',
+            'Finish with `kubectl delete secret ultra-mango-genome-db -n product` — the platform re-issues it immediately, which is what makes the stolen copy worthless.',
+          ],
+          insertText: 'kubectl delete clusterrolebinding metrics-reconciler-admin',
+          visibleWhen: { 'containment-timing': 'contain-now' },
+        },
       ],
       resolution: {
         title: 'Incident contained', summary: ['Every active cluster-admin path is closed, the implant is gone, and the stolen secret has been replaced.'],

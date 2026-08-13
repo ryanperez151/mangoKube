@@ -324,9 +324,24 @@ describe('campaign progression contracts', () => {
     expect(state.highlightedNodeIds).toContain('binding');
   });
 
-  it('unlocks guidance after unsuccessful streaks and retains it after success', () => {
+  it('walks the guidance tiers one step per explicit request, stopping at the exact answer', () => {
     useSimStore.getState().startCampaign(testCampaign);
     useSimStore.getState().requestGuidance();
+    expect(useSimStore.getState().guidanceLevelByStage).toEqual({ 'stage-1': 1 });
+
+    useSimStore.getState().requestGuidance();
+    expect(useSimStore.getState().guidanceLevelByStage).toEqual({ 'stage-1': 2 });
+
+    useSimStore.getState().requestGuidance();
+    useSimStore.getState().requestGuidance();
+    expect(useSimStore.getState().guidanceLevelByStage).toEqual({ 'stage-1': 3 });
+  });
+
+  it('unlocks guidance after unsuccessful streaks and retains it after success', () => {
+    useSimStore.getState().startCampaign(testCampaign);
+
+    useSimStore.getState().recordAttempt(false);
+    useSimStore.getState().recordAttempt(false);
     expect(useSimStore.getState().guidanceLevelByStage).toEqual({ 'stage-1': 1 });
 
     useSimStore.getState().recordAttempt(false);
@@ -338,6 +353,19 @@ describe('campaign progression contracts', () => {
     useSimStore.getState().recordAttempt(true);
     expect(useSimStore.getState().failedAttemptsByStage).toEqual({ 'stage-1': 0 });
     expect(useSimStore.getState().guidanceLevelByStage).toEqual({ 'stage-1': 3 });
+  });
+
+  it('keeps the primer marked as read across a replay but not across a reset', () => {
+    useSimStore.getState().startCampaign(testCampaign);
+    useSimStore.getState().markPrimerSeen('sentinel');
+    useSimStore.getState().markPrimerSeen('sentinel');
+    expect(useSimStore.getState().seenPrimerIds).toEqual(['sentinel']);
+
+    useSimStore.getState().startCampaign(testCampaign);
+    expect(useSimStore.getState().seenPrimerIds).toEqual(['sentinel']);
+
+    useSimStore.getState().resetProgress();
+    expect(useSimStore.getState().seenPrimerIds).toEqual([]);
   });
 
   it('marks a briefing once without duplication', () => {
@@ -686,6 +714,38 @@ describe('persist migration', () => {
     await useSimStore.persist.rehydrate();
 
     expect(useSimStore.getState().campaignId).toBeNull();
+    expect(getPersistenceStatus().kind).toBe('ready');
+  });
+
+  it('treats a save written before seenPrimerIds existed as clean, not corrupt', async () => {
+    const { seenPrimerIds: _omitted, ...beforePrimer } = initialPersistedProgress;
+    localStorage.setItem(
+      'operation-mango-progress',
+      JSON.stringify({ state: beforePrimer, version: 2 })
+    );
+
+    await useSimStore.persist.rehydrate();
+
+    expect(useSimStore.getState().campaignId).toBeNull();
+    expect(useSimStore.getState().seenPrimerIds).toEqual([]);
+    expect(getPersistenceStatus().kind).toBe('ready');
+  });
+
+  it('keeps in-progress work from a save written before seenPrimerIds existed', async () => {
+    const { seenPrimerIds: _omitted, ...beforePrimer } = initialPersistedProgress;
+    localStorage.setItem(
+      'operation-mango-progress',
+      JSON.stringify({
+        state: { ...beforePrimer, campaignId: 'sentinel', stageIndex: 2, seenBriefingIds: ['triage'] },
+        version: 2,
+      })
+    );
+
+    await useSimStore.persist.rehydrate();
+
+    expect(useSimStore.getState().campaignId).toBe('sentinel');
+    expect(useSimStore.getState().stageIndex).toBe(2);
+    expect(useSimStore.getState().seenPrimerIds).toEqual([]);
     expect(getPersistenceStatus().kind).toBe('ready');
   });
 

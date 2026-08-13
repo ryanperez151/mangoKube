@@ -12,6 +12,10 @@ export async function startRole(page: Page, role: Role) {
   await activate(page, 'button', 'New operation');
   await expect(page).toHaveURL(/campaign-select/);
   await activate(page, 'button', role === 'sentinel' ? 'Deploy as The Sentinel' : 'Deploy as The Infiltrator');
+  // A first run through a role is gated on its familiarization primer.
+  await expect(page).toHaveURL(/primer/);
+  await expect(page.getByRole('main', { name: 'Familiarization primer' })).toBeVisible();
+  await activate(page, 'button', 'Begin the operation');
   await expect(page).toHaveURL(/mission/);
 }
 
@@ -42,6 +46,7 @@ type SeedOptions = {
   collectedFacts?: string[];
   revealedFacts?: string[];
   seenBriefingIds?: string[];
+  seenPrimerIds?: string[];
   pendingStageResolution?: { stageId: string } | null;
   clusterStatus?: 'nominal' | 'suspicious' | 'compromised' | 'contained';
 };
@@ -69,6 +74,7 @@ export async function seedProgress(page: Page, role: Role, stageIndex: number, o
           guidanceLevelByStage: {},
           failedAttemptsByStage: {},
           seenBriefingIds: overrides.seenBriefingIds ?? [],
+          seenPrimerIds: overrides.seenPrimerIds ?? [campaignId],
           pendingStageResolution: overrides.pendingStageResolution ?? null,
         },
       })

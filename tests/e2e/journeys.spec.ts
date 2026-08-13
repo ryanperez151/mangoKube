@@ -49,13 +49,19 @@ test('keyboard-completes the Infiltrator campaign through the visible UI', async
   expect(terminalBox!.y + terminalBox!.height).toBeLessThanOrEqual(viewport!.height);
   await expect(page.getByLabel('terminal input')).toBeVisible();
 
-  await activate(page, 'button', 'Help');
-  await page.keyboard.press('Escape');
   const objectives = page.getByRole('tab', { name: 'Objectives' });
   await objectives.focus();
   await objectives.press('ArrowRight');
   await expect(page.getByRole('tab', { name: 'Cluster' })).toHaveAttribute('aria-selected', 'true');
-  await page.getByRole('tab', { name: 'Cluster' }).press('ArrowLeft');
+  await page.getByRole('tab', { name: 'Cluster' }).press('ArrowRight');
+  await expect(page.getByRole('tab', { name: /Guidance/ })).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('tab', { name: /Guidance/ }).press('Home');
+  await expect(objectives).toHaveAttribute('aria-selected', 'true');
+
+  await activate(page, 'button', 'Help');
+  await expect(page.getByRole('tab', { name: /Guidance/ })).toHaveAttribute('aria-selected', 'true');
+  await activate(page, 'button', 'Reveal a hint');
+  await expect(page.getByTestId('guidance-tier-1')).toBeVisible();
 
   for (const command of [
     'kubectl get pods',
@@ -101,13 +107,19 @@ test('keyboard-completes the Sentinel campaign through the visible UI', async ({
   await startRole(page, 'sentinel');
   await beginBriefing(page);
 
-  await activate(page, 'button', 'Help');
-  await page.keyboard.press('Escape');
   const evidence = page.getByRole('tab', { name: 'Evidence' });
   await evidence.focus();
   await evidence.press('ArrowRight');
   await expect(page.getByRole('tab', { name: 'Attack Path' })).toHaveAttribute('aria-selected', 'true');
   await page.getByRole('tab', { name: 'Attack Path' }).press('ArrowLeft');
+
+  await activate(page, 'button', 'Help');
+  await expect(page.getByRole('tab', { name: /Guidance/ })).toHaveAttribute('aria-selected', 'true');
+  await activate(page, 'button', 'Reveal a hint');
+  await expect(page.getByTestId('guidance-tier-1')).toBeVisible();
+  // Pinning happens in Evidence, so return there before hunting.
+  await page.getByRole('tab', { name: /Guidance/ }).press('Home');
+  await expect(evidence).toHaveAttribute('aria-selected', 'true');
 
   await pinFinding(page, 'Interactive shell /bin/sh spawned in container');
   await pinFinding(page, 'create pods/exec');
@@ -144,6 +156,24 @@ test('keyboard-completes the Sentinel campaign through the visible UI', async ({
   await expect(page).toHaveURL(/debrief/);
   await expect(page.getByRole('heading', { name: 'Incident contained' })).toBeVisible();
   await expect(page.getByText(/evidence-first route preserved/i)).toBeVisible();
+
+  // A full-evidence run leaves nothing missed, and still names the steps no
+  // query could ever have surfaced.
+  await expect(page.getByRole('heading', { name: /the attack, reconstructed/i })).toBeVisible();
+  await expect(page.getByTestId('debrief-timeline').getByText('○ Missed')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: /what you could not have seen/i })).toBeVisible();
+  await expect(page.getByTestId('debrief-unseen')).toContainText('poisoned build image');
+});
+
+test('gates the primer on a first run and skips it on replay', async ({ page }) => {
+  await startRole(page, 'infiltrator');
+  await expect(page.getByRole('main', { name: 'Operation briefing' })).toBeVisible();
+
+  // Replaying the same role must not re-gate material already read.
+  await page.goto('/campaign-select');
+  page.once('dialog', async (dialog) => dialog.accept());
+  await activate(page, 'button', 'Deploy as The Infiltrator');
+  await expect(page).toHaveURL(/mission/);
 });
 
 test('completes the contain-now Sentinel route through every remaining resolution', async ({ page }) => {
