@@ -279,10 +279,20 @@ export function normalizePersistedProgress(value: unknown): {
 
 export function reportNormalization(issue: 'none' | 'recovered' | 'corrupt'): void {
   if (issue === 'recovered') publish({ kind: 'recovered', message: 'Saved progress was repaired. Review the recovered operation or reset it safely.' });
-  if (issue === 'corrupt') publish({ kind: 'corrupt', message: 'Saved progress could not be read. Reset progress to choose a playable campaign.' });
+  if (issue === 'corrupt') reportCorruptStorage();
 }
 
 const memory = new Map<string, string>();
+
+function reportCorruptStorage(): void {
+  publish({ kind: 'corrupt', message: 'Saved progress could not be read. Reset progress to choose a playable campaign.' });
+}
+
+function isReadablePersistedEnvelope(value: unknown): boolean {
+  const envelope = asRecord(value);
+  if (envelope !== value || !Object.prototype.hasOwnProperty.call(envelope, 'state')) return false;
+  return normalizePersistedProgress(envelope.state).issue !== 'corrupt';
+}
 
 function unavailable(): void {
   publish({ kind: 'memory', message: 'Progress cannot be saved in this browser. This operation will continue in this tab.' });
@@ -293,15 +303,18 @@ export const resilientStorage: StateStorage = {
     if (typeof window === 'undefined') return memory.get(name) ?? null;
     try {
       const raw = window.localStorage.getItem(name);
-      if (raw !== null) {
-        try {
-          JSON.parse(raw);
-        } catch {
-          publish({ kind: 'corrupt', message: 'Saved progress could not be read. Reset progress to choose a playable campaign.' });
+      if (raw === null) return null;
+      try {
+        const envelope: unknown = JSON.parse(raw);
+        if (!isReadablePersistedEnvelope(envelope)) {
+          reportCorruptStorage();
           return null;
         }
+        return raw;
+      } catch {
+        reportCorruptStorage();
+        return null;
       }
-      return raw;
     } catch {
       unavailable();
       return memory.get(name) ?? null;

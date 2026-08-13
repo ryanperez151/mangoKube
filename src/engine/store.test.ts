@@ -528,6 +528,20 @@ describe('persist migration', () => {
     expect(getPersistenceStatus().kind).toBe('corrupt');
   });
 
+  it.each([
+    ['null', 'null'],
+    ['array', '[]'],
+    ['number', '42'],
+    ['empty object', '{}'],
+  ])('reports raw top-level %s JSON as corrupt before Zustand unwraps it', async (_label, raw) => {
+    localStorage.setItem('operation-mango-progress', raw);
+
+    await useSimStore.persist.rehydrate();
+
+    expect(useSimStore.getState().campaignId).toBeNull();
+    expect(getPersistenceStatus().kind).toBe('corrupt');
+  });
+
   it('reports null-campaign progress with incompatible data as corrupt', async () => {
     localStorage.setItem(
       'operation-mango-progress',

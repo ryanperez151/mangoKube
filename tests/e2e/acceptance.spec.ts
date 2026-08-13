@@ -67,6 +67,54 @@ test('malformed saved JSON exposes recovery without a blank route', async ({ pag
   await expect(page.getByRole('heading', { name: 'Choose your side' })).toBeVisible();
 });
 
+test('raw persistence envelope matrix distinguishes absence, corruption, and canonical reset', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => localStorage.removeItem('operation-mango-progress'));
+  await page.reload();
+  await expect(page.getByText('Awaiting assignment')).toBeVisible();
+  await expect(page.getByRole('status')).toHaveCount(0);
+
+  const corruptRawValues = [
+    'null',
+    '[]',
+    '42',
+    '{}',
+    JSON.stringify({ state: null, version: 2 }),
+    JSON.stringify({ state: { campaignId: null, stageIndex: 3 }, version: 2 }),
+  ];
+  for (const raw of corruptRawValues) {
+    await page.evaluate((value) => localStorage.setItem('operation-mango-progress', value), raw);
+    await page.reload();
+    await expect(page.getByText(/saved progress could not be read/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Reset Progress' })).toBeVisible();
+  }
+
+  await page.evaluate(() => localStorage.setItem('operation-mango-progress', JSON.stringify({
+    state: {
+      campaignId: null,
+      stageIndex: 0,
+      revealedFacts: [],
+      collectedFacts: [],
+      terminalHistory: [],
+      clusterStatus: 'nominal',
+      highlightedNodeIds: [],
+      revealedEdgeIds: [],
+      pinnedEvidence: [],
+      activeQuery: '',
+      timeRangeId: 'last-1h',
+      decisions: {},
+      guidanceLevelByStage: {},
+      failedAttemptsByStage: {},
+      seenBriefingIds: [],
+      pendingStageResolution: null,
+    },
+    version: 2,
+  })));
+  await page.reload();
+  await expect(page.getByText('Awaiting assignment')).toBeVisible();
+  await expect(page.getByRole('status')).toHaveCount(0);
+});
+
 test('reduced motion removes the focal scene animation', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await seedProgress(page, 'infiltrator', 0);
