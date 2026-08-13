@@ -160,6 +160,12 @@ export function normalizePersistedProgress(value: unknown): {
   progress: PersistedProgress;
   issue: 'none' | 'recovered' | 'corrupt';
 } {
+  // Zustand passes `undefined` to `merge` when the storage key is absent.
+  // This is the only non-envelope value that represents a genuine fresh browser.
+  if (value === undefined) {
+    return { progress: { ...initialPersistedProgress }, issue: 'none' };
+  }
+
   const source = asRecord(value);
   if (source.campaignId == null) {
     return {

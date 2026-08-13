@@ -381,6 +381,16 @@ describe('campaign progression contracts', () => {
 });
 
 describe('persist migration', () => {
+  it('treats an absent storage key as a clean no-save', async () => {
+    expect(localStorage.getItem('operation-mango-progress')).toBeNull();
+
+    await useSimStore.persist.rehydrate();
+
+    expect(useSimStore.getState().campaignId).toBeNull();
+    expect(useSimStore.getState().stageIndex).toBe(0);
+    expect(getPersistenceStatus().kind).toBe('ready');
+  });
+
   it('discards a pre-rework Sentinel save', () => {
     localStorage.setItem(
       'operation-mango-progress',

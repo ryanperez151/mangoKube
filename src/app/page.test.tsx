@@ -19,6 +19,18 @@ beforeEach(() => {
 });
 
 describe('LandingPage', () => {
+  it('shows a genuine fresh browser without a recovery notice', async () => {
+    expect(localStorage.getItem('operation-mango-progress')).toBeNull();
+    await useSimStore.persist.rehydrate();
+
+    render(<LandingPage />);
+
+    expect(screen.getByText('Awaiting assignment')).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /new operation/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /reset progress/i })).not.toBeInTheDocument();
+  });
+
   it('does not mount operation actions below the desktop breakpoint', () => {
     vi.spyOn(window, 'matchMedia').mockImplementation(
       (query) =>
