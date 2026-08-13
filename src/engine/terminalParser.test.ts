@@ -39,6 +39,25 @@ describe('parseCommand', () => {
     expect(outcome?.advances).toBe(true);
   });
 
+  it('rejects a command hidden by an unselected decision option', () => {
+    const conditionalStage: Stage = {
+      ...stage,
+      commands: [
+        {
+          match: /^contain$/i,
+          description: 'contain',
+          visibleWhen: { containment: 'contain-now' },
+          outcome: { output: ['contained'] },
+        },
+      ],
+    };
+
+    expect(parseCommand('contain', conditionalStage, new Set(), { containment: 'hunt-first' })).toBeNull();
+    expect(
+      parseCommand('contain', conditionalStage, new Set(), { containment: 'contain-now' })?.output
+    ).toEqual(['contained']);
+  });
+
   it('returns null for unrecognized input', () => {
     const outcome = parseCommand('rm -rf /', stage, new Set());
     expect(outcome).toBeNull();

@@ -211,4 +211,47 @@ describe('findAdvancePath', () => {
     ];
     expect(findAdvancePath(stage, { events, stageIndex: 0 })).toBeNull();
   });
+
+  it('validates a decision route using only commands and evidence visible on that route', () => {
+    const stage: Stage = {
+      id: 's',
+      title: 't',
+      briefing: [],
+      objective: 'o',
+      clusterInitial: {},
+      commands: [
+        {
+          match: /hunt/,
+          description: 'hunt',
+          visibleWhen: { containment: 'hunt-first' },
+          outcome: { output: [], advances: true },
+        },
+        {
+          match: /contain/,
+          description: 'contain',
+          visibleWhen: { containment: 'contain-now' },
+          outcome: { output: [], advances: true },
+        },
+      ],
+    };
+    const events: LogEvent[] = [
+      {
+        id: 'hidden-evidence',
+        timestamp: '2026-08-12T02:00:00Z',
+        source: 'edr',
+        message: 'm',
+        fields: {},
+        arrivesAtStage: 0,
+        revealsFact: 'hidden-fact',
+        visibleWhen: { containment: 'hunt-first' },
+      },
+    ];
+
+    expect(findAdvancePath(stage, { decisions: { containment: 'hunt-first' }, events })).toEqual([
+      'hunt',
+    ]);
+    expect(findAdvancePath(stage, { decisions: { containment: 'contain-now' }, events })).toEqual([
+      'contain',
+    ]);
+  });
 });

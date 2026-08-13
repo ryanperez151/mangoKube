@@ -104,15 +104,23 @@ describe('useSimStore', () => {
     expect(state.stageIndex).toBe(0);
   });
 
-  it('advances to the next stage and resets per-stage facts when the advancing command runs', () => {
+  it('holds completed work at a pending resolution until the player continues', () => {
     useSimStore.getState().startCampaign(testCampaign);
     useSimStore.getState().runCommand('look');
     useSimStore.getState().runCommand('act');
     const state = useSimStore.getState();
-    expect(state.stageIndex).toBe(1);
-    expect(state.revealedFacts).toEqual([]);
+    expect(state.stageIndex).toBe(0);
+    expect(state.pendingStageResolution).toEqual({ stageId: 'stage-1' });
+    expect(state.revealedFacts).toEqual(['seen-pod']);
     expect(state.collectedFacts).toEqual(['seen-pod']);
     expect(state.clusterStatus).toBe('suspicious');
+
+    useSimStore.getState().setQuery('source=edr');
+    useSimStore.getState().continueFromResolution();
+    expect(useSimStore.getState().stageIndex).toBe(1);
+    expect(useSimStore.getState().pendingStageResolution).toBeNull();
+    expect(useSimStore.getState().revealedFacts).toEqual([]);
+    expect(useSimStore.getState().activeQuery).toBe('');
   });
 
   it('records unrecognized commands without changing stage or facts', () => {
@@ -230,10 +238,14 @@ describe('evidence pinning', () => {
     useSimStore.getState().startCampaign(testCampaign);
     useSimStore.getState().runCommand('look');
     useSimStore.getState().runCommand('act');
+    useSimStore.getState().continueFromResolution();
     expect(useSimStore.getState().stageIndex).toBe(1);
     // 'ev-late' has now arrived (arrivesAtStage 1) and reveals the fact
     // stage-2's advanceWhen requires.
     useSimStore.getState().pinEvent('ev-late');
+    expect(useSimStore.getState().stageIndex).toBe(1);
+    expect(useSimStore.getState().pendingStageResolution).toEqual({ stageId: 'stage-2' });
+    useSimStore.getState().continueFromResolution();
     expect(useSimStore.getState().stageIndex).toBe(2);
   });
 });
@@ -259,6 +271,79 @@ describe('query state', () => {
   });
 });
 
+describe('campaign progression contracts', () => {
+  it('records a valid decision effect and ignores unknown decision options', () => {
+    const campaign: Campaign = {
+      ...testCampaign,
+      stages: [
+        {
+          ...testCampaign.stages[0],
+          decision: {
+            id: 'containment',
+            prompt: 'When?',
+            options: [
+              {
+                id: 'contain-now',
+                label: 'Contain now',
+                description: 'Stop the breach.',
+                effects: {
+                  revealsFacts: ['binding-revoked'],
+                  clusterDelta: { status: 'contained', highlightNodeIds: ['binding'] },
+                },
+              },
+            ],
+          },
+        },
+        {
+          ...testCampaign.stages[1],
+          decision: {
+            id: 'future-decision',
+            prompt: 'Later?',
+            options: [{ id: 'later', label: 'Later', description: 'Not yet.' }],
+          },
+        },
+        ...testCampaign.stages.slice(2),
+      ],
+    };
+    useSimStore.getState().startCampaign(campaign);
+
+    useSimStore.getState().chooseDecision('unknown', 'nope');
+    useSimStore.getState().chooseDecision('containment', 'nope');
+    useSimStore.getState().chooseDecision('future-decision', 'later');
+    expect(useSimStore.getState().decisions).toEqual({});
+
+    useSimStore.getState().chooseDecision('containment', 'contain-now');
+    const state = useSimStore.getState();
+    expect(state.decisions).toEqual({ containment: 'contain-now' });
+    expect(state.collectedFacts).toContain('binding-revoked');
+    expect(state.clusterStatus).toBe('contained');
+    expect(state.highlightedNodeIds).toContain('binding');
+  });
+
+  it('unlocks guidance after unsuccessful streaks and retains it after success', () => {
+    useSimStore.getState().startCampaign(testCampaign);
+    useSimStore.getState().requestGuidance();
+    expect(useSimStore.getState().guidanceLevelByStage).toEqual({ 'stage-1': 1 });
+
+    useSimStore.getState().recordAttempt(false);
+    useSimStore.getState().recordAttempt(false);
+    expect(useSimStore.getState().guidanceLevelByStage).toEqual({ 'stage-1': 2 });
+
+    useSimStore.getState().recordAttempt(false);
+    useSimStore.getState().recordAttempt(false);
+    useSimStore.getState().recordAttempt(true);
+    expect(useSimStore.getState().failedAttemptsByStage).toEqual({ 'stage-1': 0 });
+    expect(useSimStore.getState().guidanceLevelByStage).toEqual({ 'stage-1': 3 });
+  });
+
+  it('marks a briefing once without duplication', () => {
+    useSimStore.getState().startCampaign(testCampaign);
+    useSimStore.getState().markBriefingSeen('stage-1');
+    useSimStore.getState().markBriefingSeen('stage-1');
+    expect(useSimStore.getState().seenBriefingIds).toEqual(['stage-1']);
+  });
+});
+
 describe('persist migration', () => {
   it('discards a pre-rework Sentinel save', () => {
     localStorage.setItem(
@@ -274,6 +359,19 @@ describe('persist migration', () => {
     const state = useSimStore.getState();
     expect(state.campaignId).toBeNull();
     expect(state.collectedFacts).toEqual([]);
+  });
+
+  it('adds v2 defaults and route defaults when a v1 save has crossed each decision point', () => {
+    localStorage.setItem(
+      'operation-mango-progress',
+      JSON.stringify({
+        state: { campaignId: 'infiltrator', stageIndex: 4 },
+        version: 1,
+      })
+    );
+    useSimStore.persist.rehydrate();
+    expect(useSimStore.getState().decisions).toEqual({ 'operational-order': 'exfil-first' });
+    expect(useSimStore.getState().pendingStageResolution).toBeNull();
   });
 });
 
@@ -318,8 +416,13 @@ describe('advanceWhen cascade', () => {
 
     useSimStore.getState().startCampaign(campaign);
     useSimStore.getState().runCommand('go');
+    useSimStore.getState().continueFromResolution();
 
-    // Stage b's advanceWhen was already satisfied on entry, so it must not stall there.
+    // Stage b's advanceWhen was already satisfied on entry, so it gets its
+    // own resolution instead of stalling and can then be explicitly continued.
+    expect(useSimStore.getState().stageIndex).toBe(1);
+    expect(useSimStore.getState().pendingStageResolution).toEqual({ stageId: 'b' });
+    useSimStore.getState().continueFromResolution();
     expect(useSimStore.getState().stageIndex).toBe(2);
   });
 });
@@ -356,6 +459,7 @@ describe('cluster visuals across stage advance', () => {
 
     useSimStore.getState().startCampaign(campaign);
     useSimStore.getState().runCommand('go');
+    useSimStore.getState().continueFromResolution();
 
     const state = useSimStore.getState();
     expect(state.stageIndex).toBe(1);

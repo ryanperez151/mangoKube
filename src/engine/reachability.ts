@@ -1,8 +1,10 @@
 import type { LogEvent, Stage } from '@/content/types';
+import { isChoiceVisible } from './conditions';
 
 interface ReachabilityOptions {
   events?: LogEvent[];
   stageIndex?: number;
+  decisions?: Readonly<Record<string, string>>;
 }
 
 interface SearchNode {
@@ -26,8 +28,12 @@ function advanceWhenSatisfied(stage: Stage, facts: ReadonlySet<string>): boolean
  */
 export function findAdvancePath(stage: Stage, options: ReachabilityOptions = {}): string[] | null {
   const stageIndex = options.stageIndex ?? 0;
+  const decisions = options.decisions ?? {};
   const pinnable = (options.events ?? []).filter(
-    (event) => event.revealsFact !== undefined && event.arrivesAtStage <= stageIndex
+    (event) =>
+      event.revealsFact !== undefined &&
+      event.arrivesAtStage <= stageIndex &&
+      isChoiceVisible(event.visibleWhen, decisions)
   );
 
   const seen = new Set<string>(['']);
@@ -44,6 +50,7 @@ export function findAdvancePath(stage: Stage, options: ReachabilityOptions = {})
 
     for (const node of frontier) {
       for (const command of stage.commands) {
+        if (!isChoiceVisible(command.visibleWhen, decisions)) continue;
         const requires = command.requiresFacts ?? [];
         if (!requires.every((factId) => node.facts.has(factId))) continue;
 

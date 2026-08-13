@@ -24,7 +24,7 @@ describe('MissionPage — Infiltrator', () => {
     expect(screen.getByLabelText('terminal input')).toBeInTheDocument();
   });
 
-  it('advances the stage when the player runs the full recon command sequence', () => {
+  it('holds a completed recon sequence for explicit continuation', () => {
     useSimStore.getState().startCampaign(chapter1Campaigns.infiltrator);
     render(<MissionPage />);
     fireEvent.click(screen.getByText('Begin'));
@@ -39,7 +39,8 @@ describe('MissionPage — Infiltrator', () => {
     });
     fireEvent.submit(input.closest('form')!);
 
-    expect(useSimStore.getState().stageIndex).toBe(1);
+    expect(useSimStore.getState().stageIndex).toBe(0);
+    expect(useSimStore.getState().pendingStageResolution).toEqual({ stageId: 'recon' });
   });
 
   it('does not show a log explorer for a campaign with no corpus', () => {
@@ -86,7 +87,7 @@ describe('MissionPage — Sentinel', () => {
     expect(screen.queryByLabelText('terminal input')).toBeNull();
   });
 
-  it('advances the triage stage when both signal events are pinned', () => {
+  it('holds triage completion for explicit continuation when both signal events are pinned', () => {
     render(<MissionPage />);
     fireEvent.click(screen.getByText('Begin'));
 
@@ -95,7 +96,8 @@ describe('MissionPage — Sentinel', () => {
       useSimStore.getState().pinEvent('sig-exec-create');
     });
 
-    expect(useSimStore.getState().stageIndex).toBe(1);
+    expect(useSimStore.getState().stageIndex).toBe(0);
+    expect(useSimStore.getState().pendingStageResolution).toEqual({ stageId: 'triage' });
   });
 
   it('still shows the case file for a campaign with a log explorer', () => {
@@ -109,13 +111,17 @@ describe('MissionPage — Sentinel', () => {
     act(() => {
       store.pinEvent('sig-shell-spawn');
       store.pinEvent('sig-exec-create');
+      useSimStore.getState().continueFromResolution();
       useSimStore.getState().pinEvent('sig-sa-out-of-scope');
       useSimStore.getState().pinEvent('sig-binding-in-effect');
       useSimStore.getState().pinEvent('sig-binding-origin');
+      useSimStore.getState().continueFromResolution();
       useSimStore.getState().pinEvent('sig-secret-read');
       useSimStore.getState().pinEvent('sig-exfil-egress');
+      useSimStore.getState().continueFromResolution();
       useSimStore.getState().pinEvent('sig-rogue-sa');
       useSimStore.getState().pinEvent('sig-rogue-binding');
+      useSimStore.getState().continueFromResolution();
     });
 
     expect(useSimStore.getState().stageIndex).toBe(4);

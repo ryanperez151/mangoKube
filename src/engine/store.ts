@@ -2,7 +2,15 @@ import { useState, useEffect } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { parseCommand } from './terminalParser';
-import type { Campaign, CampaignId, ClusterDelta, TerminalEntry } from '@/content/types';
+import { isChoiceVisible } from './conditions';
+import type {
+  Campaign,
+  CampaignId,
+  ClusterDelta,
+  GuidanceLevel,
+  PendingStageResolution,
+  TerminalEntry,
+} from '@/content/types';
 
 type ClusterStatus = 'nominal' | 'suspicious' | 'compromised' | 'contained';
 
@@ -22,6 +30,11 @@ interface PersistedProgress {
   pinnedEvidence: string[];
   activeQuery: string;
   timeRangeId: string;
+  decisions: Record<string, string>;
+  guidanceLevelByStage: Record<string, GuidanceLevel>;
+  failedAttemptsByStage: Record<string, number>;
+  seenBriefingIds: string[];
+  pendingStageResolution: PendingStageResolution | null;
 }
 
 interface SimState {
@@ -37,6 +50,11 @@ interface SimState {
   pinnedEvidence: string[];
   activeQuery: string;
   timeRangeId: string;
+  decisions: Record<string, string>;
+  guidanceLevelByStage: Record<string, GuidanceLevel>;
+  failedAttemptsByStage: Record<string, number>;
+  seenBriefingIds: string[];
+  pendingStageResolution: PendingStageResolution | null;
   startCampaign: (campaign: Campaign) => void;
   hydrateCampaign: (campaign: Campaign) => void;
   runCommand: (input: string) => void;
@@ -44,6 +62,11 @@ interface SimState {
   unpinEvent: (eventId: string) => void;
   setQuery: (query: string) => void;
   setTimeRange: (rangeId: string) => void;
+  chooseDecision: (decisionId: string, optionId: string) => void;
+  requestGuidance: () => void;
+  recordAttempt: (successful: boolean) => void;
+  markBriefingSeen: (briefingId: string) => void;
+  continueFromResolution: () => void;
   resetProgress: () => void;
 }
 
@@ -58,6 +81,11 @@ const initialTransientState = {
   pinnedEvidence: [] as string[],
   activeQuery: '',
   timeRangeId: 'last-1h',
+  decisions: {} as Record<string, string>,
+  guidanceLevelByStage: {} as Record<string, GuidanceLevel>,
+  failedAttemptsByStage: {} as Record<string, number>,
+  seenBriefingIds: [] as string[],
+  pendingStageResolution: null as PendingStageResolution | null,
 };
 
 /**
@@ -102,37 +130,18 @@ export const useSimStore = create<SimState>()(
           required.length > 0 && required.every((factId) => collectedFacts.includes(factId));
 
         if (forceAdvance || advanceWhenMet) {
-          // A stage entered with its advanceWhen facts already collected
-          // would otherwise stall: pinEvent refuses to re-pin, so nothing
-          // would re-trigger the check. Cascade through any such stages,
-          // bounded by the stage count.
-          let nextIndex = stageIndex + 1;
-          while (nextIndex < campaign.stages.length) {
-            const required = campaign.stages[nextIndex].advanceWhen?.facts ?? [];
-            if (
-              required.length === 0 ||
-              !required.every((factId) => collectedFacts.includes(factId))
-            ) {
-              break;
-            }
-            nextIndex += 1;
-          }
-          const nextStage = campaign.stages[nextIndex];
           set({
             ...extra,
             collectedFacts,
-            revealedFacts: [],
-            stageIndex: nextIndex,
-            clusterStatus:
-              nextStage?.clusterInitial.status ?? delta?.status ?? state.clusterStatus,
-            highlightedNodeIds:
-              nextStage?.clusterInitial.highlightNodeIds ??
-              delta?.highlightNodeIds ??
-              state.highlightedNodeIds,
-            revealedEdgeIds:
-              nextStage?.clusterInitial.revealEdgeIds ??
-              delta?.revealEdgeIds ??
-              state.revealedEdgeIds,
+            revealedFacts,
+            pendingStageResolution: { stageId: stage.id },
+            clusterStatus: delta?.status ?? state.clusterStatus,
+            highlightedNodeIds: delta?.highlightNodeIds
+              ? [...new Set([...state.highlightedNodeIds, ...delta.highlightNodeIds])]
+              : state.highlightedNodeIds,
+            revealedEdgeIds: delta?.revealEdgeIds
+              ? [...new Set([...state.revealedEdgeIds, ...delta.revealEdgeIds])]
+              : state.revealedEdgeIds,
           });
           return;
         }
@@ -173,7 +182,8 @@ export const useSimStore = create<SimState>()(
           const state = get();
           if (!state.campaign) return;
           const stage = state.campaign.stages[state.stageIndex];
-          const outcome = parseCommand(input, stage, new Set(state.revealedFacts));
+          if (state.pendingStageResolution) return;
+          const outcome = parseCommand(input, stage, new Set(state.revealedFacts), state.decisions);
 
           if (!outcome) {
             set({
@@ -197,7 +207,9 @@ export const useSimStore = create<SimState>()(
           const state = get();
           const event = state.campaign?.logCorpus?.find((candidate) => candidate.id === eventId);
           if (!event) return;
+          if (state.pendingStageResolution) return;
           if (event.arrivesAtStage > state.stageIndex) return;
+          if (!isChoiceVisible(event.visibleWhen, state.decisions)) return;
           if (state.pinnedEvidence.includes(eventId)) return;
 
           applyReveal(
@@ -221,6 +233,78 @@ export const useSimStore = create<SimState>()(
 
         setTimeRange: (rangeId) => set({ timeRangeId: rangeId }),
 
+        chooseDecision: (decisionId, optionId) => {
+          const state = get();
+          const decision = state.campaign?.stages[state.stageIndex]?.decision;
+          if (decision?.id !== decisionId) return;
+          const option = decision?.options.find((candidate) => candidate.id === optionId);
+          if (!decision || !option) return;
+
+          applyReveal(
+            option.effects?.revealsFacts ?? [],
+            { decisions: { ...state.decisions, [decisionId]: optionId } },
+            false,
+            option.effects?.clusterDelta
+          );
+        },
+
+        requestGuidance: () => {
+          const state = get();
+          const stageId = state.campaign?.stages[state.stageIndex]?.id;
+          if (!stageId) return;
+          set({
+            guidanceLevelByStage: {
+              ...state.guidanceLevelByStage,
+              [stageId]: Math.max(1, state.guidanceLevelByStage[stageId] ?? 0) as GuidanceLevel,
+            },
+          });
+        },
+
+        recordAttempt: (successful) => {
+          const state = get();
+          const stageId = state.campaign?.stages[state.stageIndex]?.id;
+          if (!stageId) return;
+          const failedAttempts = successful ? 0 : (state.failedAttemptsByStage[stageId] ?? 0) + 1;
+          const unlocked = failedAttempts >= 4 ? 3 : failedAttempts >= 2 ? 2 : 0;
+          set({
+            failedAttemptsByStage: { ...state.failedAttemptsByStage, [stageId]: failedAttempts },
+            guidanceLevelByStage:
+              unlocked > 0
+                ? {
+                    ...state.guidanceLevelByStage,
+                    [stageId]: Math.max(state.guidanceLevelByStage[stageId] ?? 0, unlocked) as GuidanceLevel,
+                  }
+                : state.guidanceLevelByStage,
+          });
+        },
+
+        markBriefingSeen: (briefingId) => {
+          const state = get();
+          if (state.seenBriefingIds.includes(briefingId)) return;
+          set({ seenBriefingIds: [...state.seenBriefingIds, briefingId] });
+        },
+
+        continueFromResolution: () => {
+          const state = get();
+          if (!state.campaign || !state.pendingStageResolution) return;
+          const nextIndex = state.stageIndex + 1;
+          const nextStage = state.campaign.stages[nextIndex];
+          const required = nextStage?.advanceWhen?.facts ?? [];
+          set({
+            stageIndex: nextIndex,
+            pendingStageResolution:
+              required.length > 0 && required.every((factId) => state.collectedFacts.includes(factId))
+                ? { stageId: nextStage!.id }
+                : null,
+            revealedFacts: [],
+            activeQuery: '',
+            timeRangeId: state.campaign.timeRanges?.[0]?.id ?? 'last-1h',
+            clusterStatus: nextStage?.clusterInitial.status ?? state.clusterStatus,
+            highlightedNodeIds: nextStage?.clusterInitial.highlightNodeIds ?? state.highlightedNodeIds,
+            revealedEdgeIds: nextStage?.clusterInitial.revealEdgeIds ?? state.revealedEdgeIds,
+          });
+        },
+
         resetProgress: () => set({ campaign: null, campaignId: null, ...initialTransientState }),
       };
     },
@@ -238,8 +322,13 @@ export const useSimStore = create<SimState>()(
         pinnedEvidence: state.pinnedEvidence,
         activeQuery: state.activeQuery,
         timeRangeId: state.timeRangeId,
+        decisions: state.decisions,
+        guidanceLevelByStage: state.guidanceLevelByStage,
+        failedAttemptsByStage: state.failedAttemptsByStage,
+        seenBriefingIds: state.seenBriefingIds,
+        pendingStageResolution: state.pendingStageResolution,
       }),
-      version: 1,
+      version: 2,
       migrate: (persisted, version): PersistedProgress => {
         // The Sentinel campaign was rewritten around log-evidence pinning:
         // every stage id and fact id changed, so a v0 save resumes into a
@@ -251,7 +340,30 @@ export const useSimStore = create<SimState>()(
             return { campaignId: null, ...initialTransientState };
           }
         }
-        return persisted as PersistedProgress;
+        const state = persisted as Partial<PersistedProgress> | null;
+        const defaults: Pick<
+          PersistedProgress,
+          | 'decisions'
+          | 'guidanceLevelByStage'
+          | 'failedAttemptsByStage'
+          | 'seenBriefingIds'
+          | 'pendingStageResolution'
+        > = {
+          decisions: {},
+          guidanceLevelByStage: {},
+          failedAttemptsByStage: {},
+          seenBriefingIds: [],
+          pendingStageResolution: null,
+        };
+        if (version < 2 && state) {
+          const decisions = { ...defaults.decisions, ...(state.decisions ?? {}) };
+          if (state.stageIndex && state.stageIndex > 3) {
+            if (state.campaignId === 'sentinel') decisions['containment-timing'] ??= 'hunt-first';
+            if (state.campaignId === 'infiltrator') decisions['operational-order'] ??= 'exfil-first';
+          }
+          return { ...defaults, ...state, decisions } as PersistedProgress;
+        }
+        return { ...defaults, ...state } as PersistedProgress;
       },
     }
   )
