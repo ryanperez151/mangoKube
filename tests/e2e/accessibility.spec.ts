@@ -30,6 +30,30 @@ test('Sentinel and Infiltrator workspaces pass axe WCAG 2.2 AA', async ({ page }
   await expectWcag22AA(page, 'Infiltrator workspace');
 });
 
+test('familiarization primers pass axe WCAG 2.2 AA', async ({ page }) => {
+  await seedProgress(page, 'sentinel', 0, { seenPrimerIds: [] });
+  await page.goto('/primer');
+  await expect(page.getByRole('main', { name: 'Familiarization primer' })).toBeVisible();
+  await expectWcag22AA(page, 'Sentinel primer');
+
+  await page.evaluate(() => localStorage.clear());
+  await seedProgress(page, 'infiltrator', 0, { seenPrimerIds: [] });
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Your toolkit' })).toBeVisible();
+  await expectWcag22AA(page, 'Infiltrator primer');
+});
+
+test('guidance tab passes axe WCAG 2.2 AA with every tier revealed', async ({ page }) => {
+  await seedProgress(page, 'sentinel', 0, { seenBriefingIds: ['triage'] });
+  await page.goto('/mission');
+  await activate(page, 'button', 'Help');
+  for (const label of ['Reveal a hint', 'Reveal the next hint', 'Reveal the next hint']) {
+    await activate(page, 'button', label);
+  }
+  await expect(page.getByTestId('guidance-tier-3')).toBeVisible();
+  await expectWcag22AA(page, 'guidance tab');
+});
+
 test('decision scene passes axe WCAG 2.2 AA', async ({ page }) => {
   await seedProgress(page, 'sentinel', 2, {
     collectedFacts: ['evidence-secret-read', 'evidence-exfil-egress'],

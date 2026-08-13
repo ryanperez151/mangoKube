@@ -43,6 +43,7 @@ interface PersistedProgress {
   guidanceLevelByStage: Record<string, GuidanceLevel>;
   failedAttemptsByStage: Record<string, number>;
   seenBriefingIds: string[];
+  seenPrimerIds: string[];
   pendingStageResolution: PendingStageResolution | null;
 }
 
@@ -63,6 +64,7 @@ interface SimState {
   guidanceLevelByStage: Record<string, GuidanceLevel>;
   failedAttemptsByStage: Record<string, number>;
   seenBriefingIds: string[];
+  seenPrimerIds: string[];
   pendingStageResolution: PendingStageResolution | null;
   startCampaign: (campaign: Campaign) => void;
   hydrateCampaign: (campaign: Campaign) => void;
@@ -75,6 +77,7 @@ interface SimState {
   requestGuidance: () => void;
   recordAttempt: (successful: boolean) => void;
   markBriefingSeen: (briefingId: string) => void;
+  markPrimerSeen: (campaignId: CampaignId) => void;
   continueFromResolution: () => void;
   resetProgress: () => void;
 }
@@ -104,7 +107,10 @@ export const useSimStore = create<SimState>()(
         const stageId = state.campaign?.stages[state.stageIndex]?.id;
         if (!stageId) return;
         const failedAttempts = successful ? 0 : (state.failedAttemptsByStage[stageId] ?? 0) + 1;
-        const unlocked = failedAttempts >= 4 ? 3 : failedAttempts >= 2 ? 2 : 0;
+        // Auto-escalation walks the same ladder as the Reveal button, so a
+        // struggling player and a curious one see the tiers in the same
+        // order: orient, then narrow, then the exact query or command.
+        const unlocked = failedAttempts >= 6 ? 3 : failedAttempts >= 4 ? 2 : failedAttempts >= 2 ? 1 : 0;
         set({
           failedAttemptsByStage: { ...state.failedAttemptsByStage, [stageId]: failedAttempts },
           guidanceLevelByStage:
@@ -178,10 +184,15 @@ export const useSimStore = create<SimState>()(
 
         startCampaign: (campaign) => {
           const firstStage = campaign.stages[0];
+          // Reading the primer is knowledge about the console, not progress
+          // through a mission, so replaying a role does not re-gate it.
+          // Only an explicit reset clears it.
+          const { seenPrimerIds } = get();
           set({
             campaign,
             campaignId: campaign.id,
             ...initialTransientState,
+            seenPrimerIds,
             timeRangeId: campaign.timeRanges?.[0]?.id ?? 'last-1h',
             ...enterStagePatch(firstStage.clusterInitial, 'nominal'),
           });
@@ -269,14 +280,17 @@ export const useSimStore = create<SimState>()(
           );
         },
 
+        /** Reveal the next tier for this stage, stopping at the exact answer. */
         requestGuidance: () => {
           const state = get();
           const stageId = state.campaign?.stages[state.stageIndex]?.id;
           if (!stageId) return;
+          const current = state.guidanceLevelByStage[stageId] ?? 0;
+          if (current >= 3) return;
           set({
             guidanceLevelByStage: {
               ...state.guidanceLevelByStage,
-              [stageId]: Math.max(1, state.guidanceLevelByStage[stageId] ?? 0) as GuidanceLevel,
+              [stageId]: (current + 1) as GuidanceLevel,
             },
           });
         },
@@ -287,6 +301,12 @@ export const useSimStore = create<SimState>()(
           const state = get();
           if (state.seenBriefingIds.includes(briefingId)) return;
           set({ seenBriefingIds: [...state.seenBriefingIds, briefingId] });
+        },
+
+        markPrimerSeen: (campaignId) => {
+          const state = get();
+          if (state.seenPrimerIds.includes(campaignId)) return;
+          set({ seenPrimerIds: [...state.seenPrimerIds, campaignId] });
         },
 
         continueFromResolution: () => {
@@ -335,6 +355,7 @@ export const useSimStore = create<SimState>()(
         guidanceLevelByStage: state.guidanceLevelByStage,
         failedAttemptsByStage: state.failedAttemptsByStage,
         seenBriefingIds: state.seenBriefingIds,
+        seenPrimerIds: state.seenPrimerIds,
         pendingStageResolution: state.pendingStageResolution,
       }),
       version: 2,
@@ -361,12 +382,14 @@ export const useSimStore = create<SimState>()(
           | 'guidanceLevelByStage'
           | 'failedAttemptsByStage'
           | 'seenBriefingIds'
+          | 'seenPrimerIds'
           | 'pendingStageResolution'
         > = {
           decisions: {},
           guidanceLevelByStage: {},
           failedAttemptsByStage: {},
           seenBriefingIds: [],
+          seenPrimerIds: [],
           pendingStageResolution: null,
         };
         if (version < 2 && state) {

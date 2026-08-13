@@ -17,6 +17,7 @@ function CampaignSelectExperience() {
   const router = useRouter();
   const startCampaign = useSimStore((state) => state.startCampaign);
   const savedCampaignId = useSimStore((state) => state.campaignId);
+  const seenPrimerIds = useSimStore((state) => state.seenPrimerIds);
 
   function choose(id: CampaignId) {
     if (
@@ -24,7 +25,9 @@ function CampaignSelectExperience() {
       !window.confirm('Replace the current operation? Existing campaign progress will be cleared.')
     ) return;
     startCampaign(chapter1Campaigns[id]);
-    router.push('/mission');
+    // First time in a role, the primer comes before the briefing. After that
+    // it stays reachable from the mission's Guidance tab instead.
+    router.push(seenPrimerIds.includes(id) ? '/mission' : '/primer');
   }
 
   return (

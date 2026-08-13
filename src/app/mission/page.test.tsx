@@ -145,62 +145,64 @@ describe('MissionPage shared workspace shell', () => {
     expect(router.push).toHaveBeenCalledWith('/campaign-select');
   });
 
-  it('Help is focused, keyboard-dismissible, unlocks tier 1, and replays without altering progress', async () => {
+  it('Help selects and focuses the Guidance tab, and replays without altering progress', async () => {
     renderWorkspace('infiltrator');
     const seenBefore = [...useSimStore.getState().seenBriefingIds];
 
     fireEvent.click(screen.getByRole('button', { name: 'Help' }));
-    const dialog = screen.getByRole('dialog', { name: /mission help/i });
-    expect(dialog).toBeInTheDocument();
-    expect(screen.getByText('Start with the workloads already running in the cluster.')).toBeInTheDocument();
-    await waitFor(() =>
-      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close help' }))
-    );
+    const guidanceTab = screen.getByRole('tab', { name: /guidance/i });
+    expect(guidanceTab).toHaveAttribute('aria-selected', 'true');
+    await waitFor(() => expect(document.activeElement).toBe(guidanceTab));
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('aria-labelledby', 'context-tab-guidance');
 
-    fireEvent.keyDown(dialog, { key: 'Escape' });
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Help' }));
     fireEvent.click(screen.getByRole('button', { name: /replay briefing/i }));
     expect(screen.getByRole('main', { name: /operation briefing/i })).toBeInTheDocument();
     expect(useSimStore.getState().seenBriefingIds).toEqual(seenBefore);
   });
 
-  it('contains Help focus, makes the workspace inert, and restores focus on close', async () => {
+  it('keeps guidance non-modal so the workspace stays usable while a hint is open', () => {
     renderWorkspace('infiltrator');
-    const helpButton = screen.getByRole('button', { name: 'Help' });
-    fireEvent.click(helpButton);
+    fireEvent.click(screen.getByRole('button', { name: 'Help' }));
 
-    expect(screen.getByTestId('workspace-content')).toHaveAttribute('inert');
-    const closeButton = screen.getByRole('button', { name: 'Close help' });
-    const replayButton = screen.getByRole('button', { name: /replay briefing/i });
-    await waitFor(() => expect(document.activeElement).toBe(closeButton));
-    fireEvent.keyDown(closeButton, { key: 'Tab', shiftKey: true });
-    expect(document.activeElement).toBe(replayButton);
-    fireEvent.keyDown(replayButton, { key: 'Tab' });
-    expect(document.activeElement).toBe(closeButton);
-    fireEvent.keyDown(replayButton, { key: 'Escape' });
-    await waitFor(() => expect(document.activeElement).toBe(helpButton));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.getByTestId('workspace-content')).not.toHaveAttribute('inert');
+    expect(screen.getByLabelText('terminal input')).toBeInTheDocument();
+  });
+
+  it('reveals guidance one tier at a time and keeps earlier tiers on screen', () => {
+    renderWorkspace('infiltrator');
+    fireEvent.click(screen.getByRole('button', { name: 'Help' }));
+    expect(screen.queryByTestId('guidance-tier-1')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /reveal a hint/i }));
+    expect(screen.getByTestId('guidance-tier-1')).toBeInTheDocument();
+    expect(screen.queryByTestId('guidance-tier-2')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /reveal the next hint/i }));
+    fireEvent.click(screen.getByRole('button', { name: /reveal the next hint/i }));
+    expect(screen.getByTestId('guidance-tier-1')).toBeInTheDocument();
+    expect(screen.getByTestId('guidance-tier-2')).toBeInTheDocument();
+    expect(screen.getByTestId('guidance-tier-3')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /reveal/i })).not.toBeInTheDocument();
   });
 });
 
 describe('MissionPage adaptive help', () => {
-  it('unrecognized commands unlock only the highest tier and tier 3 inserts without submitting', () => {
+  it('unrecognized commands escalate to the exact command, which inserts without submitting', () => {
     renderWorkspace('infiltrator');
-    for (let attempt = 0; attempt < 4; attempt += 1) submitTerminal('not-a-command');
+    for (let attempt = 0; attempt < 6; attempt += 1) submitTerminal('not-a-command');
 
-    expect(useSimStore.getState().failedAttemptsByStage.recon).toBe(4);
+    expect(useSimStore.getState().failedAttemptsByStage.recon).toBe(6);
     fireEvent.click(screen.getByRole('button', { name: 'Help' }));
-    expect(screen.queryByText('Start with the workloads already running in the cluster.')).not.toBeInTheDocument();
-    expect(screen.getByText(/Run `kubectl get pods`/)).toBeInTheDocument();
+    expect(screen.getByTestId('guidance-tier-3')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /insert into terminal/i }));
 
     expect(screen.getByLabelText('terminal input')).toHaveValue('kubectl get pods');
     expect(document.activeElement).toBe(screen.getByLabelText('terminal input'));
-    expect(useSimStore.getState().terminalHistory).toHaveLength(4);
+    expect(useSimStore.getState().terminalHistory).toHaveLength(6);
   });
 
-  it('failed Sentinel searches unlock tier 2 at two and tier 3 at four with the only exact-query insert', () => {
+  it('failed Sentinel searches walk tier 1 at two, tier 2 at four, and tier 3 at six', () => {
     renderWorkspace('sentinel');
     const input = screen.getByLabelText('search query');
     for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -208,13 +210,16 @@ describe('MissionPage adaptive help', () => {
       fireEvent.submit(screen.getByRole('search'));
     }
     fireEvent.click(screen.getByRole('button', { name: 'Help' }));
-    expect(screen.getByText(/Then look for Kubernetes exec activity/)).toBeInTheDocument();
+    expect(screen.getByTestId('guidance-tier-1')).toBeInTheDocument();
+    expect(screen.queryByTestId('guidance-tier-2')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /insert/i })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Close help' }));
 
     for (let attempt = 0; attempt < 2; attempt += 1) fireEvent.submit(screen.getByRole('search'));
-    fireEvent.click(screen.getByRole('button', { name: 'Help' }));
-    expect(screen.queryByText(/Then look for Kubernetes exec activity/)).not.toBeInTheDocument();
+    expect(screen.getByTestId('guidance-tier-2')).toBeInTheDocument();
+    expect(screen.queryByTestId('guidance-tier-3')).not.toBeInTheDocument();
+
+    for (let attempt = 0; attempt < 2; attempt += 1) fireEvent.submit(screen.getByRole('search'));
+    expect(screen.getByTestId('guidance-tier-3')).toBeInTheDocument();
     const submittedBeforeInsert = useSimStore.getState().activeQuery;
     fireEvent.click(screen.getByRole('button', { name: /insert into search/i }));
     expect(screen.getByLabelText('search query')).toHaveValue('source=edr severity=high');
@@ -228,7 +233,7 @@ describe('MissionPage adaptive help', () => {
     submitTerminal('kubectl get pods');
 
     expect(useSimStore.getState().failedAttemptsByStage.recon).toBe(0);
-    expect(useSimStore.getState().guidanceLevelByStage.recon).toBe(2);
+    expect(useSimStore.getState().guidanceLevelByStage.recon).toBe(1);
   });
 });
 
@@ -238,12 +243,13 @@ describe('MissionPage Sentinel workspace', () => {
     useSimStore.getState().markBriefingSeen('triage');
   });
 
-  it('uses exactly Evidence and Attack Path context tabs and no query chips', () => {
+  it('uses exactly Evidence, Attack Path, and Guidance context tabs and no query chips', () => {
     render(<MissionPage />);
     const tablist = screen.getByRole('tablist', { name: 'Mission context' });
     expect(within(tablist).getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
       'Evidence',
       'Attack Path',
+      'Guidance',
     ]);
     expect(screen.getByLabelText('case file')).toBeInTheDocument();
     expect(screen.queryByLabelText('attack path map')).not.toBeInTheDocument();
@@ -320,7 +326,7 @@ describe('MissionPage Sentinel workspace', () => {
   it('clears a tier-3 inserted query when the next stage begins', () => {
     render(<MissionPage />);
     const search = screen.getByRole('search');
-    for (let attempt = 0; attempt < 4; attempt += 1) {
+    for (let attempt = 0; attempt < 6; attempt += 1) {
       fireEvent.change(screen.getByLabelText('search query'), { target: { value: 'source=nothing' } });
       fireEvent.submit(search);
     }
@@ -340,12 +346,13 @@ describe('MissionPage Sentinel workspace', () => {
 });
 
 describe('MissionPage Infiltrator workspace', () => {
-  it('uses exactly Objectives and Cluster tabs and never renders an always-visible command list', () => {
+  it('uses exactly Objectives, Cluster, and Guidance tabs and never renders an always-visible command list', () => {
     renderWorkspace('infiltrator');
     const tablist = screen.getByRole('tablist', { name: 'Mission context' });
     expect(within(tablist).getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
       'Objectives',
       'Cluster',
+      'Guidance',
     ]);
     expect(screen.getByText('Locate the implanted build pod.')).toBeInTheDocument();
     expect(screen.queryByTestId('terminal-hints')).not.toBeInTheDocument();

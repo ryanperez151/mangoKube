@@ -6,3 +6,5 @@ export const chapter1Campaigns: Record<CampaignId, Campaign> = {
   infiltrator: infiltratorCampaign,
   sentinel: sentinelCampaign,
 };
+
+export { chapter1AttackTimeline } from './attackTimeline';
