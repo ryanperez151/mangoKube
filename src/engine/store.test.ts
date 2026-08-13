@@ -342,6 +342,40 @@ describe('campaign progression contracts', () => {
     useSimStore.getState().markBriefingSeen('stage-1');
     expect(useSimStore.getState().seenBriefingIds).toEqual(['stage-1']);
   });
+
+  it('does not apply a decision change after stage completion is pending', () => {
+    const campaign: Campaign = {
+      ...testCampaign,
+      stages: [
+        {
+          ...testCampaign.stages[0],
+          decision: {
+            id: 'containment',
+            prompt: 'When?',
+            options: [
+              { id: 'hunt-first', label: 'Hunt first', description: 'Gather evidence.' },
+              {
+                id: 'contain-now',
+                label: 'Contain now',
+                description: 'Act immediately.',
+                effects: { revealsFacts: ['late-decision-fact'] },
+              },
+            ],
+          },
+        },
+        ...testCampaign.stages.slice(1),
+      ],
+    };
+    useSimStore.getState().startCampaign(campaign);
+    useSimStore.getState().chooseDecision('containment', 'hunt-first');
+    useSimStore.getState().runCommand('look');
+    useSimStore.getState().runCommand('act');
+
+    expect(useSimStore.getState().pendingStageResolution).toEqual({ stageId: 'stage-1' });
+    useSimStore.getState().chooseDecision('containment', 'contain-now');
+    expect(useSimStore.getState().decisions).toEqual({ containment: 'hunt-first' });
+    expect(useSimStore.getState().collectedFacts).not.toContain('late-decision-fact');
+  });
 });
 
 describe('persist migration', () => {
@@ -373,6 +407,25 @@ describe('persist migration', () => {
     expect(useSimStore.getState().decisions).toEqual({ 'operational-order': 'exfil-first' });
     expect(useSimStore.getState().pendingStageResolution).toBeNull();
   });
+
+  it.each([
+    ['sentinel', 3, {}],
+    ['sentinel', 4, { 'containment-timing': 'hunt-first' }],
+    ['infiltrator', 3, {}],
+    ['infiltrator', 4, { 'operational-order': 'exfil-first' }],
+  ] as const)(
+    'defaults %s only after its decision point (stage %i)',
+    (campaignId, stageIndex, expectedDecisions) => {
+      useSimStore.getState().resetProgress();
+      localStorage.setItem(
+        'operation-mango-progress',
+        JSON.stringify({ state: { campaignId, stageIndex }, version: 1 })
+      );
+
+      useSimStore.persist.rehydrate();
+      expect(useSimStore.getState().decisions).toEqual(expectedDecisions);
+    }
+  );
 });
 
 describe('advanceWhen cascade', () => {

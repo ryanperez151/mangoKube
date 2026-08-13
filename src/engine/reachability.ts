@@ -29,6 +29,11 @@ function advanceWhenSatisfied(stage: Stage, facts: ReadonlySet<string>): boolean
 export function findAdvancePath(stage: Stage, options: ReachabilityOptions = {}): string[] | null {
   const stageIndex = options.stageIndex ?? 0;
   const decisions = options.decisions ?? {};
+  const selectedOption =
+    stage.decision && decisions[stage.decision.id]
+      ? stage.decision.options.find((option) => option.id === decisions[stage.decision!.id])
+      : undefined;
+  const initialFacts = new Set(selectedOption?.effects?.revealsFacts ?? []);
   const pinnable = (options.events ?? []).filter(
     (event) =>
       event.revealsFact !== undefined &&
@@ -36,8 +41,9 @@ export function findAdvancePath(stage: Stage, options: ReachabilityOptions = {})
       isChoiceVisible(event.visibleWhen, decisions)
   );
 
-  const seen = new Set<string>(['']);
-  let frontier: SearchNode[] = [{ facts: new Set(), path: [] }];
+  const initialKey = [...initialFacts].sort().join(',');
+  const seen = new Set<string>([initialKey]);
+  let frontier: SearchNode[] = [{ facts: initialFacts, path: [] }];
 
   while (frontier.length > 0) {
     // Every goal reachable at this depth is checked before any goal one

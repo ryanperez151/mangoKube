@@ -254,4 +254,32 @@ describe('findAdvancePath', () => {
       'contain',
     ]);
   });
+
+  it('starts a selected stage decision route with facts revealed by its effect', () => {
+    const stage: Stage = {
+      id: 's',
+      title: 't',
+      briefing: [],
+      objective: 'o',
+      clusterInitial: {},
+      commands: [],
+      advanceWhen: { facts: ['binding-revoked'] },
+      decision: {
+        id: 'containment',
+        prompt: 'When?',
+        options: [
+          {
+            id: 'contain-now',
+            label: 'Contain now',
+            description: 'Act immediately.',
+            effects: { revealsFacts: ['binding-revoked'] },
+          },
+          { id: 'hunt-first', label: 'Hunt first', description: 'Gather evidence.' },
+        ],
+      },
+    };
+
+    expect(findAdvancePath(stage, { decisions: { containment: 'contain-now' } })).toEqual([]);
+    expect(findAdvancePath(stage, { decisions: { containment: 'hunt-first' } })).toBeNull();
+  });
 });

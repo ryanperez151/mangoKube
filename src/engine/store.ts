@@ -235,6 +235,7 @@ export const useSimStore = create<SimState>()(
 
         chooseDecision: (decisionId, optionId) => {
           const state = get();
+          if (state.pendingStageResolution) return;
           const decision = state.campaign?.stages[state.stageIndex]?.decision;
           if (decision?.id !== decisionId) return;
           const option = decision?.options.find((candidate) => candidate.id === optionId);
