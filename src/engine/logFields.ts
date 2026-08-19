@@ -1,4 +1,4 @@
-import type { LogEvent, LogSource } from '@/content/types';
+import type { ColumnSort, LogEvent, LogSource } from '@/content/types';
 import { fieldValue } from './logQuery';
 
 export { fieldValue };
@@ -142,4 +142,131 @@ export function summarizeFieldValues(
     .map(([value, count]) => ({ value, count, share: count / carrying }))
     .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value))
     .slice(0, limit);
+}
+
+export type ValueFilterMode = 'include' | 'exclude';
+
+/** Newest-first, matching what `executeQuery` already returns. */
+export const DEFAULT_COLUMN_SORT: ColumnSort = { field: TIME_FIELD, direction: 'desc' };
+
+export function sortEvents(events: LogEvent[], sort: ColumnSort): LogEvent[] {
+  const factor = sort.direction === 'asc' ? 1 : -1;
+
+  return [...events].sort((a, b) => {
+    if (sort.field === TIME_FIELD) {
+      return (Date.parse(a.timestamp) - Date.parse(b.timestamp)) * factor;
+    }
+
+    const left = fieldValue(a, sort.field);
+    const right = fieldValue(b, sort.field);
+    // A row that lacks the field sorts last whichever way the column points:
+    // "no value" is not smaller than "a value", it is absent.
+    if (left === undefined && right === undefined) return 0;
+    if (left === undefined) return 1;
+    if (right === undefined) return -1;
+
+    const compared = left.toLowerCase().localeCompare(right.toLowerCase());
+    if (compared !== 0) return compared * factor;
+    return Date.parse(b.timestamp) - Date.parse(a.timestamp);
+  });
+}
+
+interface ParsedToken {
+  field: string;
+  value: string;
+  negated: boolean;
+}
+
+/**
+ * Splits a query into raw tokens, keeping quoted runs and their quotes intact.
+ * Deliberately not `logQuery`'s tokenizer: that one strips quotes because it is
+ * parsing, and this one is rewriting text the player will see and edit.
+ */
+function rawTokens(query: string): string[] {
+  const tokens: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (const char of query) {
+    if (char === '"') {
+      inQuotes = !inQuotes;
+      current += char;
+      continue;
+    }
+    if (!inQuotes && /\s/.test(char)) {
+      if (current) tokens.push(current);
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+
+  if (current) tokens.push(current);
+  return tokens;
+}
+
+function parseToken(token: string): ParsedToken | null {
+  const negated = token.startsWith('-');
+  const body = negated ? token.slice(1) : token;
+  const equalsAt = body.indexOf('=');
+  if (equalsAt <= 0) return null;
+
+  const value = body.slice(equalsAt + 1).replace(/^"(.*)"$/, '$1');
+  if (!value) return null;
+  return { field: body.slice(0, equalsAt), value, negated };
+}
+
+function formatToken(field: string, value: string, mode: ValueFilterMode): string {
+  const quoted = /\s/.test(value) ? `"${value}"` : value;
+  return `${mode === 'exclude' ? '-' : ''}${field}=${quoted}`;
+}
+
+/**
+ * At most one predicate per field survives. Splunk would AND a second value of
+ * the same field and return nothing, which reads as a broken panel rather than
+ * a lesson; replacing is what every modern SIEM does. Clicking the predicate
+ * already in play toggles it back off.
+ */
+export function applyValueFilter(
+  query: string,
+  field: string,
+  value: string,
+  mode: ValueFilterMode
+): string {
+  const tokens = rawTokens(query);
+  const existing = tokens
+    .map(parseToken)
+    .find((parsed): parsed is ParsedToken => parsed !== null && parsed.field === field);
+
+  const others = tokens.filter((token) => {
+    const parsed = parseToken(token);
+    return parsed === null || parsed.field !== field;
+  });
+
+  const isToggleOff =
+    existing !== undefined &&
+    existing.value === value &&
+    existing.negated === (mode === 'exclude');
+
+  const next = isToggleOff ? others : [...others, formatToken(field, value, mode)];
+  return next.join(' ');
+}
+
+export function toggleColumnField(fields: string[], field: string): string[] {
+  return fields.includes(field) ? fields.filter((name) => name !== field) : [...fields, field];
+}
+
+export function moveColumnField(fields: string[], field: string, direction: -1 | 1): string[] {
+  const index = fields.indexOf(field);
+  const target = index + direction;
+  if (index === -1 || target < 0 || target >= fields.length) return fields;
+
+  const next = [...fields];
+  next[index] = next[target];
+  next[target] = field;
+  return next;
+}
+
+export function removeColumnField(fields: string[], field: string): string[] {
+  return fields.filter((name) => name !== field);
 }

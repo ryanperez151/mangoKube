@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { buildFieldCatalog, summarizeFieldValues } from './logFields';
+import {
+  applyValueFilter,
+  buildFieldCatalog,
+  moveColumnField,
+  removeColumnField,
+  sortEvents,
+  summarizeFieldValues,
+  toggleColumnField,
+} from './logFields';
 import type { LogEvent } from '@/content/types';
 
 const events: LogEvent[] = [
@@ -182,5 +190,150 @@ describe('summarizeFieldValues', () => {
 
   it('returns nothing for a field no event carries', () => {
     expect(summarizeFieldValues('nope', events)).toEqual([]);
+  });
+});
+
+describe('sortEvents', () => {
+  it('sorts by time descending by default', () => {
+    const sorted = sortEvents(events, { field: 'time', direction: 'desc' });
+    expect(sorted.map((event) => event.id)).toEqual(['a3', 'a2', 'e1', 'a1']);
+  });
+
+  it('sorts by time ascending', () => {
+    const sorted = sortEvents(events, { field: 'time', direction: 'asc' });
+    expect(sorted.map((event) => event.id)).toEqual(['a1', 'e1', 'a2', 'a3']);
+  });
+
+  it('sorts a string field case-insensitively', () => {
+    const sorted = sortEvents(events, { field: 'verb', direction: 'asc' });
+    expect(sorted.slice(0, 3).map((event) => event.fields.verb)).toEqual([
+      'create',
+      'get',
+      'get',
+    ]);
+  });
+
+  it('puts events missing the field last in both directions', () => {
+    const ascending = sortEvents(events, { field: 'severity', direction: 'asc' });
+    const descending = sortEvents(events, { field: 'severity', direction: 'desc' });
+    expect(ascending.at(-1)?.fields.severity).toBeUndefined();
+    expect(descending.at(-1)?.fields.severity).toBeUndefined();
+    expect(ascending[0].id).toBe('e1');
+    expect(descending[0].id).toBe('e1');
+  });
+
+  it('breaks ties newest-first so order is stable', () => {
+    const sorted = sortEvents(events, { field: 'verb', direction: 'asc' });
+    expect(sorted.map((event) => event.id).slice(1, 3)).toEqual(['a3', 'a2']);
+  });
+
+  it('does not mutate its input', () => {
+    const before = events.map((event) => event.id);
+    sortEvents(events, { field: 'time', direction: 'asc' });
+    expect(events.map((event) => event.id)).toEqual(before);
+  });
+});
+
+describe('applyValueFilter', () => {
+  it('appends a predicate to an empty query', () => {
+    expect(applyValueFilter('', 'user', 'ci-deploy-bot', 'include')).toBe('user=ci-deploy-bot');
+  });
+
+  it('appends a predicate on a new field', () => {
+    expect(applyValueFilter('source=edr', 'severity', 'high', 'include')).toBe(
+      'source=edr severity=high'
+    );
+  });
+
+  it('writes an exclusion with a leading dash', () => {
+    expect(applyValueFilter('source=edr', 'severity', 'high', 'exclude')).toBe(
+      'source=edr -severity=high'
+    );
+  });
+
+  it('toggles an identical predicate off', () => {
+    expect(applyValueFilter('source=edr severity=high', 'severity', 'high', 'include')).toBe(
+      'source=edr'
+    );
+  });
+
+  it('toggles an identical exclusion off', () => {
+    expect(applyValueFilter('-severity=high', 'severity', 'high', 'exclude')).toBe('');
+  });
+
+  it('replaces a different value on the same field', () => {
+    expect(applyValueFilter('source=edr severity=low', 'severity', 'high', 'include')).toBe(
+      'source=edr severity=high'
+    );
+  });
+
+  it('replaces when only the polarity differs', () => {
+    expect(applyValueFilter('-severity=high', 'severity', 'high', 'include')).toBe(
+      'severity=high'
+    );
+  });
+
+  it('quotes a value containing whitespace', () => {
+    expect(applyValueFilter('', 'message', 'create pods/exec', 'include')).toBe(
+      'message="create pods/exec"'
+    );
+  });
+
+  it('matches an existing quoted predicate when toggling off', () => {
+    expect(
+      applyValueFilter('message="create pods/exec"', 'message', 'create pods/exec', 'include')
+    ).toBe('');
+  });
+
+  it('leaves bare search terms alone', () => {
+    expect(applyValueFilter('genome source=edr', 'severity', 'high', 'include')).toBe(
+      'genome source=edr severity=high'
+    );
+  });
+});
+
+describe('column field transforms', () => {
+  it('adds a field to the end when toggled on', () => {
+    expect(toggleColumnField(['source', 'message'], 'user')).toEqual([
+      'source',
+      'message',
+      'user',
+    ]);
+  });
+
+  it('removes a field when toggled off', () => {
+    expect(toggleColumnField(['source', 'message'], 'message')).toEqual(['source']);
+  });
+
+  it('moves a field left', () => {
+    expect(moveColumnField(['source', 'message', 'user'], 'user', -1)).toEqual([
+      'source',
+      'user',
+      'message',
+    ]);
+  });
+
+  it('moves a field right', () => {
+    expect(moveColumnField(['source', 'message', 'user'], 'source', 1)).toEqual([
+      'message',
+      'source',
+      'user',
+    ]);
+  });
+
+  it('leaves the list alone at either edge', () => {
+    expect(moveColumnField(['source', 'message'], 'source', -1)).toEqual(['source', 'message']);
+    expect(moveColumnField(['source', 'message'], 'message', 1)).toEqual(['source', 'message']);
+  });
+
+  it('ignores a move for a field that is not selected', () => {
+    expect(moveColumnField(['source', 'message'], 'user', -1)).toEqual(['source', 'message']);
+  });
+
+  it('removes a field', () => {
+    expect(removeColumnField(['source', 'message', 'user'], 'message')).toEqual([
+      'source',
+      'user',
+    ]);
   });
 });

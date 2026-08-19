@@ -260,6 +260,22 @@ export interface QueryResult {
   unknownFields: string[];
 }
 
+export type SortDirection = 'asc' | 'desc';
+
+export interface ColumnSort {
+  /** A selectable field name, or `'time'` for the pinned leading column. */
+  field: string;
+  direction: SortDirection;
+}
+
+/** A one-click column layout. Never lists `time`, which is always present. */
+export interface ColumnPreset {
+  id: string;
+  label: string;
+  /** Selectable fields, in table order. */
+  fields: string[];
+}
+
 export type AttackMapNodeState = 'undiscovered' | 'suspected' | 'confirmed' | 'contained';
 
 export interface AttackMapNode {
