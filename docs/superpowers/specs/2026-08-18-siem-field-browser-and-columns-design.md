@@ -10,9 +10,12 @@ event at a time. That is not how anyone hunts in a real SIEM.
 This build adds a **left field browser flyout** and **dynamic result columns**:
 the analyst picks which fields become columns, reorders and sorts them, and
 browses each field's values to refine the query by clicking rather than typing.
-It also **widens the noise corpus** so the field browser cannot be used as an
-oracle — a prerequisite the previous spec identified and deferred, which this
-feature makes load-bearing.
+
+The panel exposes a pre-existing weakness in the corpus — nine fields are carried
+only by signal events, so browsing fields by rarity short-circuits the
+investigation. Widening the noise to close that is **deliberately deferred to a
+later build**; the leak is measured and recorded under *The Oracle Problem* below
+so the follow-up starts from evidence.
 
 The intended audience's reference points are Splunk and CrowdStrike, so the
 interaction model is deliberately theirs: a collapsible left sidebar listing
@@ -84,7 +87,21 @@ the first instinct of the Splunk-trained analyst this experience is built for.
 Chapter 1 would fall in three clicks, by a route more efficient than the intended
 one.
 
-### The fix: widen the noise, then enforce it
+### Deferred, by decision
+
+**Corpus widening is out of scope for this build.** The leak described above
+ships. It is recorded here, with its measurements, so the follow-up work starts
+from evidence rather than rediscovery — and so this document is not later read as
+having missed it.
+
+One zero-cost mitigation is folded into the panel instead: **available fields
+sort by coverage descending**, most common first. That is Splunk's own ranking,
+so it costs nothing in authenticity, and it means the rarest fields — the ones
+that give the game away — are at the bottom of the list rather than the top. It
+blunts the affordance; it does not close the hole. Anyone who scrolls still finds
+`sourceIP · 7 events` sitting alone.
+
+### The fix, when it happens
 
 Benign noise templates gain real values for every field the signal carries:
 internal `sourceIP` values on routine audit records, `object` names on ordinary
@@ -99,7 +116,7 @@ The effect is that rare-field hunting still works, and should: narrowing to
 just stops being a solve. The analyst still has to look at the values and
 recognise that one of these addresses is not like the others.
 
-Two invariants get tests in `corpus.test.ts`:
+Two invariants should then get tests in `corpus.test.ts`:
 
 - **No field is signal-exclusive.** Every field carried by a signal event is also
   carried by at least three benign events.
@@ -115,10 +132,10 @@ itself* acting as the pointer.
 The existing 5% ratio test stays. It measures a different property and both
 matter.
 
-### Consequences to re-verify
+### Consequences to re-verify, then
 
 Widening the noise perturbs result sets the guided track depends on. Three
-things must be re-checked after the corpus changes, and each has a test:
+things must be re-checked when that work is done, and each should get a test:
 
 - The stage guidance `insertText` queries (`source=edr severity=high`,
   `user=ci-deploy-bot`, `source=k8s-audit resource=secrets`,
@@ -196,7 +213,9 @@ preset is chosen. Pinned, it stays. Pin state persists across sessions.
 Top to bottom: a filter-fields input, then **Selected fields** in table order,
 each with move up / move down / remove, then **Available fields** under source
 headings — `severity · 41 events · 19%` — greyed and unselectable at zero
-coverage in the current result set. Presets sit at the top as a row of chips.
+coverage in the current result set. Within each source, fields sort by coverage
+descending, most common first, as Splunk ranks them. Presets sit at the top as a
+row of chips.
 
 Expanding a field reveals its top values with counts and share bars. Each value
 carries explicit **+** and **−** buttons rather than modifier-clicks, because a
@@ -309,18 +328,20 @@ feature should not perturb it.
   advance.
 - **Persistence tests** — a pre-feature save reports `'none'`, not `'corrupt'`;
   bogus field names and a bad sort direction report `'recovered'`.
-- **`corpus.test.ts`** — the two new field-overlap invariants; the existing ratio
-  tests unchanged; guided `insertText` queries still return their signal event
-  within a 25-event scannable ceiling.
 - **`columnPresets.test.ts`** — every preset field exists in the corpus.
+- **`corpus.test.ts`** — unchanged. The field-overlap invariants belong to the
+  deferred corpus work and cannot pass against the corpus as it stands.
 - **`accessibility.spec.ts`** — the existing axe sweep covers the panel open,
   with a case added for the pinned state.
 
 ## Scope
 
 **In scope:** the field browser flyout, dynamic and sortable columns, curated
-presets, the value-click filter loop, noise-corpus widening with its enforcing
-tests, persistence of layout, and the primer section.
+presets, the value-click filter loop, persistence of layout, and the primer
+section.
+
+**Deferred to a later build:** noise-corpus widening and its two enforcing
+invariants, specified under *The Oracle Problem*.
 
 **Out of scope:** query aggregation (`| stats count by field`), which the
 existing spec already defers and which nothing here needs; table-cell click
@@ -330,11 +351,11 @@ presets; any change to the Infiltrator campaign.
 
 ## Risks
 
-- **Corpus widening is the real risk in this build.** It changes result sets the
-  guided track depends on, and its failure mode is subtle: the guidance still
-  technically works while the signal becomes harder to see than intended. The
-  25-event scannable ceiling on guided queries is the guard, and a manual
-  playthrough of the full Sentinel arc is a required step, not an optional one.
+- **The oracle leak ships.** A player who opens the panel and scrolls to the
+  rarest fields can reach every signal event without investigating. Accepted by
+  decision, mitigated only by coverage-descending sort order. This is the first
+  thing to fix after this build, and it gets worse the longer the panel is in
+  players' hands without it.
 - **Horizontal space.** The workspace is already two columns. Pinning the panel
   open while tabling six fields will be tight at 1280px, the width the e2e suite
   asserts against. The overlay default rather than a permanent rail is the
