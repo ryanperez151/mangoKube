@@ -72,8 +72,12 @@ export function parseQuery(input: string): QueryParseResult {
  * `source` and `message` are promoted to queryable fields so players can
  * write `source=edr` without the content author duplicating them into
  * every event's `fields` bag.
+ *
+ * Exported because column rendering and field summaries read values through
+ * this same accessor — one definition means a field can never become
+ * queryable but not tableable, or the reverse.
  */
-function fieldValue(event: LogEvent, field: string): string | undefined {
+export function fieldValue(event: LogEvent, field: string): string | undefined {
   if (field === 'source') return event.source;
   if (field === 'message') return event.message;
   return event.fields[field];
