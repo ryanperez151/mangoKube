@@ -89,6 +89,27 @@ describe('ColumnHeaderMenu', () => {
     expect(getPopover(trigger)).toBeNull();
   });
 
+  it('returns focus to the trigger after moving left', () => {
+    renderMenu();
+    const trigger = openMenu();
+    fireEvent.click(screen.getByRole('button', { name: /move left/i }));
+    expect(trigger).toHaveFocus();
+  });
+
+  it('returns focus to the trigger after moving right', () => {
+    renderMenu();
+    const trigger = openMenu();
+    fireEvent.click(screen.getByRole('button', { name: /move right/i }));
+    expect(trigger).toHaveFocus();
+  });
+
+  it('returns focus to the trigger after removing the column', () => {
+    renderMenu();
+    const trigger = openMenu();
+    fireEvent.click(screen.getByRole('button', { name: /remove column/i }));
+    expect(trigger).toHaveFocus();
+  });
+
   it('closes on Escape pressed on the trigger, and returns focus to the trigger', () => {
     renderMenu();
     const trigger = openMenu();
@@ -113,6 +134,51 @@ describe('ColumnHeaderMenu', () => {
     const popover = getPopover(trigger);
     fireEvent.mouseDown(popover as HTMLElement);
     expect(getPopover(trigger)).toBeInTheDocument();
+  });
+
+  it('closes when focus leaves the wrapper by any means, e.g. tabbing away', () => {
+    renderMenu();
+    const trigger = openMenu();
+    const outside = document.createElement('button');
+    document.body.appendChild(outside);
+
+    // No mousedown anywhere — this is the keyboard path the mousedown listener can't see.
+    fireEvent.focusOut(trigger, { relatedTarget: outside });
+
+    expect(getPopover(trigger)).toBeNull();
+    document.body.removeChild(outside);
+  });
+
+  it('does not close when focus moves to a button inside its own popover', () => {
+    renderMenu();
+    const trigger = openMenu();
+    const moveLeft = screen.getByRole('button', { name: /move left/i });
+
+    fireEvent.focusOut(trigger, { relatedTarget: moveLeft });
+
+    expect(getPopover(trigger)).toBeInTheDocument();
+  });
+
+  it('keeps only one popover open when keyboard focus moves from one trigger straight to another', () => {
+    render(
+      <>
+        <ColumnHeaderMenu field="user" index={0} total={2} onMove={vi.fn()} onRemove={vi.fn()} />
+        <ColumnHeaderMenu field="host" index={1} total={2} onMove={vi.fn()} onRemove={vi.fn()} />
+      </>
+    );
+    const triggerA = screen.getByRole('button', { name: /column options for user/i });
+    const triggerB = screen.getByRole('button', { name: /column options for host/i });
+
+    fireEvent.click(triggerA);
+    expect(getPopover(triggerA)).toBeInTheDocument();
+
+    // Tabbing straight from A's trigger into B's trigger fires no mousedown at all.
+    fireEvent.focusOut(triggerA, { relatedTarget: triggerB });
+    triggerB.focus();
+    fireEvent.click(triggerB);
+
+    expect(getPopover(triggerA)).toBeNull();
+    expect(getPopover(triggerB)).toBeInTheDocument();
   });
 
   it('removes the outside-click listener once the popover closes', () => {
@@ -145,6 +211,45 @@ describe('ColumnHeaderMenu', () => {
 
     unmount();
     expect(removeSpy).toHaveBeenCalledWith('mousedown', addedHandler);
+
+    addSpy.mockRestore();
+    removeSpy.mockRestore();
+  });
+
+  it('removes the focus-out listener once the popover closes', () => {
+    renderMenu();
+    const trigger = screen.getByRole('button', { name: /column options for user/i });
+    const wrapper = trigger.parentElement as HTMLElement;
+    const addSpy = vi.spyOn(wrapper, 'addEventListener');
+    const removeSpy = vi.spyOn(wrapper, 'removeEventListener');
+
+    fireEvent.click(trigger);
+    const addedHandler = addSpy.mock.calls.find(([type]) => type === 'focusout')?.[1];
+    expect(addedHandler).toBeDefined();
+
+    fireEvent.keyDown(trigger, { key: 'Escape' });
+    expect(getPopover(trigger)).toBeNull();
+    expect(removeSpy).toHaveBeenCalledWith('focusout', addedHandler);
+
+    addSpy.mockRestore();
+    removeSpy.mockRestore();
+  });
+
+  it('removes the focus-out listener on unmount', () => {
+    const { unmount } = render(
+      <ColumnHeaderMenu field="user" index={1} total={3} onMove={vi.fn()} onRemove={vi.fn()} />
+    );
+    const trigger = screen.getByRole('button', { name: /column options for user/i });
+    const wrapper = trigger.parentElement as HTMLElement;
+    const addSpy = vi.spyOn(wrapper, 'addEventListener');
+    const removeSpy = vi.spyOn(wrapper, 'removeEventListener');
+
+    fireEvent.click(trigger);
+    const addedHandler = addSpy.mock.calls.find(([type]) => type === 'focusout')?.[1];
+    expect(addedHandler).toBeDefined();
+
+    unmount();
+    expect(removeSpy).toHaveBeenCalledWith('focusout', addedHandler);
 
     addSpy.mockRestore();
     removeSpy.mockRestore();

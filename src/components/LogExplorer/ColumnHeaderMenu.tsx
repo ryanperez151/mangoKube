@@ -29,13 +29,23 @@ export function ColumnHeaderMenu({ field, index, total, onMove, onRemove }: Colu
   const wrapperRef = useRef<HTMLSpanElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
-  function act(run: () => void) {
-    run();
+  function close() {
     setOpen(false);
   }
 
-  function close() {
-    setOpen(false);
+  // Tab-then-Enter on an action is the primary keyboard path through this component,
+  // not an edge case, so losing focus here would be the common case rather than a rare
+  // one — mirrors the restoration Escape already does below. If the action itself
+  // unmounted the trigger (Remove column can take the whole header with it), focusing
+  // a detached node is a harmless no-op, so there's no need to special-case it.
+  function closeAndRestoreFocus() {
+    close();
+    triggerRef.current?.focus();
+  }
+
+  function act(run: () => void) {
+    run();
+    closeAndRestoreFocus();
   }
 
   // Focus sits on the trigger when the popover is open — it's never moved into the
@@ -43,8 +53,7 @@ export function ColumnHeaderMenu({ field, index, total, onMove, onRemove }: Colu
   function handleTriggerKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
     if (event.key === 'Escape' && open) {
       event.stopPropagation();
-      close();
-      triggerRef.current?.focus();
+      closeAndRestoreFocus();
     }
   }
 
@@ -63,6 +72,37 @@ export function ColumnHeaderMenu({ field, index, total, onMove, onRemove }: Colu
 
     document.addEventListener('mousedown', handlePointerDown);
     return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, [open]);
+
+  // Mousedown alone misses keyboard users: Tabbing straight from this popover into
+  // another instance's trigger fires no mousedown anywhere, so without this a keyboard
+  // user could leave two popovers open at once — the same orphaned-popover symptom the
+  // outside-click listener exists to prevent, just via a different input method. This
+  // does not restore focus on close (unlike closeAndRestoreFocus): focus already moved
+  // somewhere on purpose here, and stealing it back would fight that navigation. A null
+  // relatedTarget (focus leaving the document entirely) is treated as "outside" too,
+  // since there's no evidence it stayed inside.
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const wrapper = wrapperRef.current;
+    if (!wrapper) {
+      return;
+    }
+
+    // An arrow function expression (not a nested function declaration) so TypeScript
+    // carries the non-null narrowing of `wrapper` from the guard above into the closure.
+    const handleFocusOut = (event: FocusEvent) => {
+      const next = event.relatedTarget as Node | null;
+      if (!next || !wrapper.contains(next)) {
+        close();
+      }
+    };
+
+    wrapper.addEventListener('focusout', handleFocusOut);
+    return () => wrapper.removeEventListener('focusout', handleFocusOut);
   }, [open]);
 
   return (
