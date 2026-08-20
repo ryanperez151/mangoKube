@@ -1,5 +1,242 @@
-import type { Campaign } from '../types';
+import type { Campaign, CommandDefinition } from '../types';
 import { infiltratorPrimer } from './primer';
+
+const mangoTree = [
+  '              _\\/_',
+  '               /\\',
+  '          .-""""""-.',
+  `        .'   MANGO   '.`,
+  '       /  o   o   o    \\',
+  '      / o   o   o   o   \\',
+  '             ||',
+  '          ___||___',
+  '',
+  'Not every shell grows on a tree. This one apparently does.',
+];
+
+const infiltratorAmbientCommands: CommandDefinition[] = [
+  {
+    match: /^(?:help|\?)$/i,
+    description: 'help',
+    outcome: {
+      output: [
+        'MANGOCORP BUILD RUNNER // LOCAL HELP',
+        '',
+        'Orientation   whoami, id, hostname, uname -a, pwd',
+        'Filesystem    ls [-la], find . -maxdepth 2, cat /workspace/README.md',
+        'Runtime       printenv, ps aux, ip addr (or ifconfig)',
+        'Tooling       which kubectl, kubectl version --client',
+        'Morale        mango',
+        '',
+        'Mission commands are deliberately omitted from this local menu.',
+        'If this shell starts feeling fruitless, the Guidance tab is ripe with the next nudge.',
+      ],
+    },
+  },
+  {
+    match: /^whoami$/i,
+    description: 'whoami',
+    outcome: {
+      output: [
+        'root',
+        "Linux user only — Kubernetes requests still use the pod's service account.",
+      ],
+    },
+  },
+  {
+    match: /^id$/i,
+    description: 'id',
+    outcome: { output: ['uid=0(root) gid=0(root) groups=0(root)'] },
+  },
+  {
+    match: /^hostname$/i,
+    description: 'hostname',
+    outcome: { output: ['ci-deploy-bot-7f9c4d6b6-x2k1p'] },
+  },
+  {
+    match: /^uname$/i,
+    description: 'uname',
+    outcome: { output: ['Linux'] },
+  },
+  {
+    match: /^uname\s+-a$/i,
+    description: 'uname -a',
+    outcome: {
+      output: [
+        'Linux ci-deploy-bot-7f9c4d6b6-x2k1p 6.8.0-mango #1 SMP x86_64 GNU/Linux',
+      ],
+    },
+  },
+  {
+    match: /^pwd$/i,
+    description: 'pwd',
+    outcome: { output: ['/workspace'] },
+  },
+  {
+    match: /^ls(?:\s+(?:\.|\/workspace)\/?)?$/i,
+    description: 'ls',
+    outcome: { output: ['README.md  runner.log  runner.sh'] },
+  },
+  {
+    match: /^ls\s+-(?:la|al)(?:\s+(?:\.|\/workspace)\/?)?$/i,
+    description: 'ls -la',
+    outcome: {
+      output: [
+        'total 24',
+        'drwxr-xr-x 1 root root 4096 Aug 20 02:11 .',
+        'drwxr-xr-x 1 root root 4096 Aug 20 02:11 ..',
+        '-rw-r--r-- 1 root root   47 Aug 20 02:11 .mango',
+        '-rw-r--r-- 1 root root  184 Aug 20 02:11 README.md',
+        '-rw-r--r-- 1 root root  112 Aug 20 02:11 runner.log',
+        '-rwxr-xr-x 1 root root   52 Aug 20 02:11 runner.sh',
+      ],
+    },
+  },
+  {
+    match: /^find\s+\.(?:\s+-maxdepth\s+2)?$/i,
+    description: 'find . -maxdepth 2',
+    outcome: {
+      output: ['.', './.mango', './README.md', './runner.log', './runner.sh'],
+    },
+  },
+  {
+    match: /^find\s+\/workspace\/?(?:\s+-maxdepth\s+2)?$/i,
+    description: 'find /workspace -maxdepth 2',
+    outcome: {
+      output: [
+        '/workspace',
+        '/workspace/.mango',
+        '/workspace/README.md',
+        '/workspace/runner.log',
+        '/workspace/runner.sh',
+      ],
+    },
+  },
+  {
+    match: /^cat\s+(?:\.\/)?(?:\/workspace\/)?README\.md$/i,
+    description: 'cat /workspace/README.md',
+    outcome: {
+      output: [
+        '# MangoCorp Build Runner',
+        'Ephemeral CI worker for deployment jobs in the build namespace.',
+        'kubectl is bundled for pipeline use. Local inspection is expected; cluster changes are not.',
+      ],
+    },
+  },
+  {
+    match: /^cat\s+(?:\.\/)?(?:\/workspace\/)?\.mango$/i,
+    description: 'cat /workspace/.mango',
+    outcome: {
+      output: ['MANGO_BUILD_VARIETY=kent', '# Tommy Atkins was rejected in code review.'],
+    },
+  },
+  {
+    match: /^cat\s+(?:\.\/)?(?:\/workspace\/)?runner\.log$/i,
+    description: 'cat /workspace/runner.log',
+    outcome: {
+      output: [
+        '2026-08-20T02:11:04Z INFO runner online',
+        '2026-08-20T02:11:05Z INFO waiting for pipeline work',
+      ],
+    },
+  },
+  {
+    match: /^cat\s+(?:\.\/)?(?:\/workspace\/)?runner\.sh$/i,
+    description: 'cat /workspace/runner.sh',
+    outcome: { output: ['#!/bin/sh', 'exec /usr/local/bin/mango-runner'] },
+  },
+  {
+    match: /^cat\s+\/etc\/os-release$/i,
+    description: 'cat /etc/os-release',
+    outcome: {
+      output: [
+        'NAME="Alpine Linux"',
+        'ID=alpine',
+        'VERSION_ID=3.20.2',
+        'PRETTY_NAME="Alpine Linux v3.20"',
+      ],
+    },
+  },
+  {
+    match: /^cat\s+\/etc\/hostname$/i,
+    description: 'cat /etc/hostname',
+    outcome: { output: ['ci-deploy-bot-7f9c4d6b6-x2k1p'] },
+  },
+  {
+    match: /^cat\s+\/var\/run\/secrets\/kubernetes\.io\/serviceaccount\/namespace$/i,
+    description: 'cat /var/run/secrets/kubernetes.io/serviceaccount/namespace',
+    outcome: { output: ['build'] },
+  },
+  {
+    match: /^(?:env|printenv)$/i,
+    description: 'printenv',
+    outcome: {
+      output: [
+        'HOSTNAME=ci-deploy-bot-7f9c4d6b6-x2k1p',
+        'HOME=/root',
+        'PWD=/workspace',
+        'KUBERNETES_SERVICE_HOST=10.43.0.1',
+        'KUBERNETES_SERVICE_PORT=443',
+        'MANGO_ENV=production',
+        'MANGO_VARIETY=kent',
+        'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+      ],
+    },
+  },
+  {
+    match: /^ip\s+(?:addr|a)$/i,
+    description: 'ip addr',
+    outcome: {
+      output: [
+        '1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 state UNKNOWN',
+        '    inet 127.0.0.1/8 scope host lo',
+        '2: eth0@if42: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1450 state UP',
+        '    inet 10.42.7.23/24 brd 10.42.7.255 scope global eth0',
+      ],
+    },
+  },
+  {
+    match: /^ifconfig(?:\s+-a)?$/i,
+    description: 'ifconfig',
+    outcome: {
+      output: [
+        'eth0      Link encap:Ethernet  HWaddr 02:42:0A:2A:07:17',
+        '          inet addr:10.42.7.23  Bcast:10.42.7.255  Mask:255.255.255.0',
+        'lo        Link encap:Local Loopback',
+        '          inet addr:127.0.0.1  Mask:255.0.0.0',
+      ],
+    },
+  },
+  {
+    match: /^ps(?:\s+(?:aux|-ef))?$/i,
+    description: 'ps aux',
+    outcome: {
+      output: [
+        'PID   USER     TIME  COMMAND',
+        '1     root      0:02 /usr/local/bin/mango-runner',
+        '17    root      0:00 /bin/sh',
+        '31    root      0:00 ps aux',
+      ],
+    },
+  },
+  {
+    match: /^(?:which\s+kubectl|command\s+-v\s+kubectl)$/i,
+    description: 'which kubectl',
+    outcome: { output: ['/usr/local/bin/kubectl'] },
+  },
+  {
+    match: /^kubectl\s+version\s+--client(?:=true)?$/i,
+    description: 'kubectl version --client',
+    outcome: {
+      output: ['Client Version: v1.31.4', 'Kustomize Version: v5.4.2'],
+    },
+  },
+  {
+    match: /^(?:mango|cat\s+\/etc\/motd)$/i,
+    description: 'mango',
+    outcome: { output: mangoTree },
+  },
+];
 
 export const infiltratorCampaign: Campaign = {
   id: 'infiltrator',
@@ -9,6 +246,14 @@ export const infiltratorCampaign: Campaign = {
     fantasy: 'A covert operator exploiting an over-privileged Kubernetes foothold.',
     primaryMechanic: 'Chain fact-gated terminal actions while choosing an operational order.',
     learningFocus: 'How excessive RBAC turns one workload identity into theft and durable persistence.',
+  },
+  terminalProfile: {
+    prompt: 'root@build-runner:/workspace$',
+    banner: [
+      'MangoCorp Build Runner 4.7.1 // recovery shell',
+      'Session restored inside the build namespace. Type `help` for prepared local commands.',
+    ],
+    ambientCommands: infiltratorAmbientCommands,
   },
   primer: infiltratorPrimer,
   factLibrary: {

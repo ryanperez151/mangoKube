@@ -194,6 +194,8 @@ export interface Campaign {
   title: string;
   tagline: string;
   role?: CampaignRole;
+  /** Role-specific shell framing and harmless commands available in every stage. */
+  terminalProfile?: CampaignTerminalProfile;
   /** Familiarization material shown before stage 1. */
   primer?: CampaignPrimer;
   stages: Stage[];
@@ -209,6 +211,12 @@ export interface Campaign {
 export interface TerminalEntry {
   input: string;
   output: string[];
+}
+
+export interface CampaignTerminalProfile {
+  prompt: string;
+  banner: string[];
+  ambientCommands: CommandDefinition[];
 }
 
 export type LogSource = 'k8s-audit' | 'edr' | 'apiserver' | 'ci-cd';
