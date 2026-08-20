@@ -44,8 +44,6 @@ function renderExplorer(overrides: Partial<React.ComponentProps<typeof LogExplor
     columnSort: { field: 'time', direction: 'desc' as const },
     fieldPanelPinned: false,
     presets: [{ id: 'audit-triage', label: 'Audit triage', fields: ['severity'] }],
-    suggestions: [{ label: 'High severity', query: 'severity=high' }],
-    hint: 'Try narrowing by severity.',
     pinnedIds: [] as string[],
     selectedId: null as string | null,
     onQueryChange: vi.fn(),
@@ -53,8 +51,6 @@ function renderExplorer(overrides: Partial<React.ComponentProps<typeof LogExplor
     onColumnFieldsChange: vi.fn(),
     onColumnSortChange: vi.fn(),
     onFieldPanelPinnedChange: vi.fn(),
-    onPin: vi.fn(),
-    onUnpin: vi.fn(),
     onSelect: vi.fn(),
     onFailedAttempt: vi.fn(),
     ...overrides,
@@ -178,5 +174,41 @@ describe('LogExplorer', () => {
     expect(props.onFieldPanelPinnedChange).toHaveBeenCalledWith(false);
     props.rerender(<LogExplorer {...props} fieldPanelPinned={false} />);
     expect(screen.getByTestId('field-panel')).toBeInTheDocument();
+  });
+
+  // The edge tab that owns `panelToggleRef` only renders while the panel is
+  // closed, so it is unmounted (and the ref is null) at the moment any close
+  // path used to call `panelToggleRef.current?.focus()`. Focus has to be
+  // restored after the toggle remounts, not during the close handler itself.
+  it('returns focus to the toggle after closing an unpinned panel via the close button', () => {
+    renderExplorer();
+    fireEvent.click(screen.getByRole('button', { name: /open field browser/i }));
+    fireEvent.click(screen.getByRole('button', { name: /close field browser/i }));
+    expect(screen.getByRole('button', { name: /open field browser/i })).toHaveFocus();
+  });
+
+  it('returns focus to the toggle after closing an unpinned panel via Escape', () => {
+    renderExplorer();
+    fireEvent.click(screen.getByRole('button', { name: /open field browser/i }));
+    fireEvent.keyDown(screen.getByTestId('field-panel'), { key: 'Escape' });
+    expect(screen.getByRole('button', { name: /open field browser/i })).toHaveFocus();
+  });
+
+  it('returns focus to the toggle after closing a pinned panel via the close button', () => {
+    // The close button unpins as well as closes for a pinned panel, so the
+    // parent (the store, in real use) re-renders with `fieldPanelPinned:
+    // false`; simulate that with `rerender`, same as the unpin test above.
+    const props = renderExplorer({ fieldPanelPinned: true });
+    fireEvent.click(screen.getByRole('button', { name: /close field browser/i }));
+    expect(props.onFieldPanelPinnedChange).toHaveBeenCalledWith(false);
+    props.rerender(<LogExplorer {...props} fieldPanelPinned={false} />);
+    expect(screen.getByRole('button', { name: /open field browser/i })).toHaveFocus();
+  });
+
+  it('returns focus to the toggle after applying a preset from the unpinned panel', () => {
+    renderExplorer();
+    fireEvent.click(screen.getByRole('button', { name: /open field browser/i }));
+    fireEvent.click(screen.getByRole('button', { name: /audit triage/i }));
+    expect(screen.getByRole('button', { name: /open field browser/i })).toHaveFocus();
   });
 });

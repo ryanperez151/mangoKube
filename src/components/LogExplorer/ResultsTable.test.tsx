@@ -34,8 +34,8 @@ function renderTable(overrides: Partial<React.ComponentProps<typeof ResultsTable
     onColumnFieldsChange: vi.fn(),
     ...overrides,
   };
-  render(<ResultsTable {...props} />);
-  return props;
+  const view = render(<ResultsTable {...props} />);
+  return { ...props, rerender: view.rerender };
 }
 
 describe('ResultsTable', () => {
@@ -144,5 +144,33 @@ describe('ResultsTable', () => {
     fireEvent.click(screen.getByRole('button', { name: /column options for message/i }));
     fireEvent.click(screen.getByRole('button', { name: /move left/i }));
     expect(props.onColumnFieldsChange).toHaveBeenCalledWith(['message', 'source']);
+  });
+
+  // `onColumnFieldsChange` here is a mock, so it does not itself update
+  // `columnFields` — the same pattern LogExplorer.test.tsx uses for its
+  // pin/unpin test — so `rerender` stands in for the real parent (the
+  // store) re-rendering with the field already gone.
+  it('focuses the neighbouring trigger after removing a column', () => {
+    const props = renderTable({ columnFields: ['source', 'message', 'user'] });
+    fireEvent.click(screen.getByRole('button', { name: /column options for message/i }));
+    fireEvent.click(screen.getByRole('button', { name: /remove column/i }));
+    props.rerender(<ResultsTable {...props} columnFields={['source', 'user']} />);
+    expect(screen.getByRole('button', { name: /column options for user/i })).toHaveFocus();
+  });
+
+  it('focuses the left neighbour when the last column is removed', () => {
+    const props = renderTable({ columnFields: ['source', 'message'] });
+    fireEvent.click(screen.getByRole('button', { name: /column options for message/i }));
+    fireEvent.click(screen.getByRole('button', { name: /remove column/i }));
+    props.rerender(<ResultsTable {...props} columnFields={['source']} />);
+    expect(screen.getByRole('button', { name: /column options for source/i })).toHaveFocus();
+  });
+
+  it('focuses the Time sort button when the only column is removed', () => {
+    const props = renderTable({ columnFields: ['source'] });
+    fireEvent.click(screen.getByRole('button', { name: /column options for source/i }));
+    fireEvent.click(screen.getByRole('button', { name: /remove column/i }));
+    props.rerender(<ResultsTable {...props} columnFields={[]} />);
+    expect(screen.getByRole('button', { name: /sort by time/i })).toHaveFocus();
   });
 });

@@ -46,9 +46,17 @@ export function FieldPanel({
   const [filterText, setFilterText] = useState('');
   const [expandedField, setExpandedField] = useState<string | null>(null);
   const panelRef = useRef<HTMLElement>(null);
+  // `open` starts `true` on plenty of renders that are not the player opening
+  // the panel: `isPanelOpen = fieldPanelPinned || panelOpen` in LogExplorer
+  // means a pinned panel is already open on first mount, and LogExplorer
+  // remounts (`key={stage.id}`) on every stage advance. Tracking the previous
+  // value distinguishes an actual closed-to-open transition from those — the
+  // only case that should pull focus into the sidebar.
+  const wasOpen = useRef(open);
 
   useEffect(() => {
-    if (open) panelRef.current?.focus();
+    if (open && !wasOpen.current) panelRef.current?.focus();
+    wasOpen.current = open;
   }, [open]);
 
   const expandedValues = useMemo(

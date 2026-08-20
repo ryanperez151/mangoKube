@@ -61,6 +61,13 @@ export function LogExplorer({
   const [draft, setDraft] = useState(query);
   const [panelOpen, setPanelOpen] = useState(false);
   const panelToggleRef = useRef<HTMLButtonElement>(null);
+  // The edge tab that owns `panelToggleRef` only renders while the panel is
+  // closed (see the `{!isPanelOpen && ...}` guard below), so at the moment
+  // any close path runs, the tab is unmounted and the ref is null. Requesting
+  // a restore here and acting on it in the effect below — which fires after
+  // the close has committed and the tab has remounted — is what makes the
+  // focus call land on a real node instead of nothing.
+  const restoreFocus = useRef(false);
 
   useEffect(() => setDraft(query), [query]);
 
@@ -83,6 +90,13 @@ export function LogExplorer({
 
   // Pinning is a promise the panel stays put; an overlay is dismissible.
   const isPanelOpen = fieldPanelPinned || panelOpen;
+
+  useEffect(() => {
+    if (!isPanelOpen && restoreFocus.current) {
+      restoreFocus.current = false;
+      panelToggleRef.current?.focus();
+    }
+  }, [isPanelOpen]);
 
   function runQuery() {
     onSelect(null);
@@ -109,9 +123,9 @@ export function LogExplorer({
   }
 
   function closePanel() {
+    restoreFocus.current = true;
     setPanelOpen(false);
     if (fieldPanelPinned) onFieldPanelPinnedChange(false);
-    panelToggleRef.current?.focus();
   }
 
   return (
@@ -172,7 +186,10 @@ export function LogExplorer({
           }
           onApplyPreset={(preset) => {
             onColumnFieldsChange([...preset.fields]);
-            if (!fieldPanelPinned) setPanelOpen(false);
+            if (!fieldPanelPinned) {
+              restoreFocus.current = true;
+              setPanelOpen(false);
+            }
           }}
           onFilter={filterByValue}
           onTogglePinned={() => {

@@ -62,8 +62,8 @@ function renderPanel(overrides: Partial<React.ComponentProps<typeof FieldPanel>>
     onClose: vi.fn(),
     ...overrides,
   };
-  render(<FieldPanel {...props} />);
-  return props;
+  const view = render(<FieldPanel {...props} />);
+  return { ...props, rerender: view.rerender };
 }
 
 describe('FieldPanel', () => {
@@ -166,7 +166,18 @@ describe('FieldPanel', () => {
   });
 
   it('takes focus when it opens', () => {
-    renderPanel();
+    const props = renderPanel({ open: false });
+    props.rerender(<FieldPanel {...props} open={true} />);
     expect(screen.getByTestId('field-panel')).toHaveFocus();
+  });
+
+  // `isPanelOpen = fieldPanelPinned || panelOpen` in LogExplorer means a
+  // pinned panel is already `open: true` on the very first render — on
+  // initial page load, and again on every stage advance, since LogExplorer
+  // carries `key={stage.id}` and remounts. None of those are the player
+  // opening the panel, so none of them should yank focus into the sidebar.
+  it('does not steal focus when it mounts already open', () => {
+    renderPanel({ open: true });
+    expect(screen.getByTestId('field-panel')).not.toHaveFocus();
   });
 });

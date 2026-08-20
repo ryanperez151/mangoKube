@@ -1,9 +1,10 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import type { ColumnSort, LogEvent } from '@/content/types';
 import { fieldValue, moveColumnField, removeColumnField, TIME_FIELD } from '@/engine/logFields';
 import { cn } from '@/lib/cn';
-import { ColumnHeaderMenu } from './ColumnHeaderMenu';
+import { ColumnHeaderMenu, type ColumnHeaderMenuHandle } from './ColumnHeaderMenu';
 
 interface ResultsTableProps {
   events: LogEvent[];
@@ -54,6 +55,39 @@ export function ResultsTable({
   onSortChange,
   onColumnFieldsChange,
 }: ResultsTableProps) {
+  const menuRefs = useRef(new Map<string, ColumnHeaderMenuHandle>());
+  const timeSortButtonRef = useRef<HTMLButtonElement>(null);
+  // Set by `handleRemove`, read by the effect below once the removal has
+  // actually committed — the index has to be captured before the field
+  // disappears from `columnFields`, since that's the only moment "which
+  // column was this" is still answerable.
+  const pendingRemovalIndex = useRef<number | null>(null);
+
+  // `ColumnHeaderMenu.act` focuses its own trigger before this fires (see the
+  // comment on `closeAndRestoreFocus` there), but for a removal that trigger
+  // is gone a moment later along with its `<th>`. This runs after the DOM
+  // has already settled on the post-removal layout, so it's the one whose
+  // focus placement actually survives: the column that slid into the removed
+  // one's slot, or the one that's now last, or — if that was the only
+  // selected column — the pinned Time sort button.
+  useEffect(() => {
+    const index = pendingRemovalIndex.current;
+    if (index === null) return;
+    pendingRemovalIndex.current = null;
+
+    const neighborField = columnFields[index] ?? columnFields[index - 1];
+    if (neighborField) {
+      menuRefs.current.get(neighborField)?.focusTrigger();
+    } else {
+      timeSortButtonRef.current?.focus();
+    }
+  }, [columnFields]);
+
+  function handleRemove(removedField: string) {
+    pendingRemovalIndex.current = columnFields.indexOf(removedField);
+    onColumnFieldsChange(removeColumnField(columnFields, removedField));
+  }
+
   if (events.length === 0) {
     return (
       <p data-testid="empty-results" className="p-6 text-center font-mono text-xs text-mango-300/80">
@@ -74,6 +108,7 @@ export function ResultsTable({
             </th>
             <th scope="col" aria-sort={ariaSort(sort, TIME_FIELD)} className="px-3 py-2 font-normal">
               <button
+                ref={timeSortButtonRef}
                 type="button"
                 aria-label="Sort by time"
                 onClick={() => onSortChange(nextSort(sort, TIME_FIELD))}
@@ -108,15 +143,17 @@ export function ResultsTable({
                   )}
                 </button>
                 <ColumnHeaderMenu
+                  ref={(instance) => {
+                    if (instance) menuRefs.current.set(field, instance);
+                    else menuRefs.current.delete(field);
+                  }}
                   field={field}
                   index={index}
                   total={columnFields.length}
                   onMove={(moved, direction) =>
                     onColumnFieldsChange(moveColumnField(columnFields, moved, direction))
                   }
-                  onRemove={(removed) =>
-                    onColumnFieldsChange(removeColumnField(columnFields, removed))
-                  }
+                  onRemove={handleRemove}
                 />
               </th>
             ))}
