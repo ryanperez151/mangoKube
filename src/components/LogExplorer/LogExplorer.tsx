@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import type { LogEvent, TimeRange } from '@/content/types';
+import type { ColumnSort, LogEvent, TimeRange } from '@/content/types';
 import { executeQuery, parseQuery } from '@/engine/logQuery';
+import { DEFAULT_COLUMN_FIELDS, DEFAULT_COLUMN_SORT, sortEvents } from '@/engine/logFields';
 import { SearchBar } from './SearchBar';
 import { TimeRangeSelect } from './TimeRangeSelect';
 import { ResultsTable } from './ResultsTable';
@@ -36,6 +37,12 @@ export function LogExplorer({
   onFailedAttempt,
 }: LogExplorerProps) {
   const [draft, setDraft] = useState(query);
+  // Local for now: the persisted layout (store's columnFields/columnSort) and the
+  // field-picker flyout land in the LogExplorer-wiring task. Until then this keeps
+  // the table's contract satisfied with the same source/message/time-desc layout
+  // it always rendered.
+  const [columnFields, setColumnFields] = useState<string[]>(DEFAULT_COLUMN_FIELDS);
+  const [sort, setSort] = useState<ColumnSort>(DEFAULT_COLUMN_SORT);
 
   useEffect(() => setDraft(query), [query]);
 
@@ -49,6 +56,7 @@ export function LogExplorer({
     if (!parsed.ok) return { events: [], unknownFields: [] };
     return executeQuery(parsed.ast, events, range);
   }, [parsed, events, range]);
+  const sortedEvents = useMemo(() => sortEvents(result.events, sort), [result.events, sort]);
 
   function runQuery() {
     onSelect(null);
@@ -98,10 +106,14 @@ export function LogExplorer({
         className="min-h-0 flex-1 overflow-y-auto border border-white/10 bg-black/35"
       >
         <ResultsTable
-          events={result.events}
+          events={sortedEvents}
+          columnFields={columnFields}
+          sort={sort}
           selectedId={selectedId}
           pinnedIds={pinnedIds}
           onSelect={onSelect}
+          onSortChange={setSort}
+          onColumnFieldsChange={setColumnFields}
         />
       </div>
     </section>

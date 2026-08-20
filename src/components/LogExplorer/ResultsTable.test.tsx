@@ -22,39 +22,127 @@ const events: LogEvent[] = [
   },
 ];
 
+function renderTable(overrides: Partial<React.ComponentProps<typeof ResultsTable>> = {}) {
+  const props = {
+    events,
+    columnFields: ['source', 'message'],
+    sort: { field: 'time', direction: 'desc' } as const,
+    selectedId: null as string | null,
+    pinnedIds: [] as string[],
+    onSelect: vi.fn(),
+    onSortChange: vi.fn(),
+    onColumnFieldsChange: vi.fn(),
+    ...overrides,
+  };
+  render(<ResultsTable {...props} />);
+  return props;
+}
+
 describe('ResultsTable', () => {
   it('renders a row per event', () => {
-    render(<ResultsTable events={events} selectedId={null} pinnedIds={[]} onSelect={() => {}} />);
+    renderTable();
     expect(screen.getByText('Interactive shell spawned')).toBeInTheDocument();
     expect(screen.getByText('get configmaps')).toBeInTheDocument();
   });
 
   it('shows each event source', () => {
-    render(<ResultsTable events={events} selectedId={null} pinnedIds={[]} onSelect={() => {}} />);
+    renderTable();
     const edr = screen.getByText('edr');
     expect(edr).toHaveClass('text-slate-300');
     expect(edr.className).not.toContain('blight');
   });
 
   it('selects an event when its row button is activated', () => {
-    const onSelect = vi.fn();
-    render(<ResultsTable events={events} selectedId={null} pinnedIds={[]} onSelect={onSelect} />);
+    const props = renderTable();
     fireEvent.click(screen.getByRole('button', { name: /Interactive shell spawned/ }));
-    expect(onSelect).toHaveBeenCalledWith('e1');
+    expect(props.onSelect).toHaveBeenCalledWith('e1');
+  });
+
+  it('selects an event when the row itself is clicked', () => {
+    const props = renderTable();
+    fireEvent.click(screen.getByTestId('row-e2'));
+    expect(props.onSelect).toHaveBeenCalledWith('e2');
   });
 
   it('marks the selected row', () => {
-    render(<ResultsTable events={events} selectedId="e1" pinnedIds={[]} onSelect={() => {}} />);
+    renderTable({ selectedId: 'e1' });
     expect(screen.getByTestId('row-e1')).toHaveAttribute('data-selected', 'true');
   });
 
   it('marks pinned rows', () => {
-    render(<ResultsTable events={events} selectedId={null} pinnedIds={['e2']} onSelect={() => {}} />);
+    renderTable({ pinnedIds: ['e2'] });
     expect(screen.getByTestId('row-e2')).toHaveAttribute('data-pinned', 'true');
   });
 
   it('tells the player when nothing matched', () => {
-    render(<ResultsTable events={[]} selectedId={null} pinnedIds={[]} onSelect={() => {}} />);
+    renderTable({ events: [] });
     expect(screen.getByTestId('empty-results')).toBeInTheDocument();
+  });
+
+  it('renders a column per selected field', () => {
+    renderTable({ columnFields: ['user', 'severity'] });
+    expect(screen.getByRole('columnheader', { name: /user/i })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /severity/i })).toBeInTheDocument();
+    expect(screen.queryByText('Interactive shell spawned')).toBeNull();
+  });
+
+  it('stays selectable when the message column is removed', () => {
+    const props = renderTable({ columnFields: ['user'] });
+    fireEvent.click(screen.getByRole('button', { name: /Interactive shell spawned/ }));
+    expect(props.onSelect).toHaveBeenCalledWith('e1');
+  });
+
+  it('shows a dash where an event does not carry the field', () => {
+    renderTable({ columnFields: ['severity'] });
+    expect(screen.getByTestId('row-e2')).toHaveTextContent('—');
+  });
+
+  it('always keeps the pinned time column', () => {
+    renderTable({ columnFields: [] });
+    expect(screen.getByRole('columnheader', { name: /time/i })).toBeInTheDocument();
+  });
+
+  it('reports the current sort to assistive technology', () => {
+    renderTable({ sort: { field: 'time', direction: 'desc' } });
+    expect(screen.getByRole('columnheader', { name: /time/i })).toHaveAttribute(
+      'aria-sort',
+      'descending'
+    );
+    expect(screen.getByRole('columnheader', { name: /source/i })).toHaveAttribute(
+      'aria-sort',
+      'none'
+    );
+  });
+
+  it('sorts a newly chosen column ascending', () => {
+    const props = renderTable();
+    fireEvent.click(screen.getByRole('button', { name: /sort by source/i }));
+    expect(props.onSortChange).toHaveBeenCalledWith({ field: 'source', direction: 'asc' });
+  });
+
+  it('flips the direction of the active column', () => {
+    const props = renderTable({ sort: { field: 'source', direction: 'asc' } });
+    fireEvent.click(screen.getByRole('button', { name: /sort by source/i }));
+    expect(props.onSortChange).toHaveBeenCalledWith({ field: 'source', direction: 'desc' });
+  });
+
+  it('opens time descending, the way an incident feed reads', () => {
+    const props = renderTable({ sort: { field: 'source', direction: 'asc' } });
+    fireEvent.click(screen.getByRole('button', { name: /sort by time/i }));
+    expect(props.onSortChange).toHaveBeenCalledWith({ field: 'time', direction: 'desc' });
+  });
+
+  it('removes a column from its header menu', () => {
+    const props = renderTable();
+    fireEvent.click(screen.getByRole('button', { name: /column options for source/i }));
+    fireEvent.click(screen.getByRole('button', { name: /remove column/i }));
+    expect(props.onColumnFieldsChange).toHaveBeenCalledWith(['message']);
+  });
+
+  it('moves a column from its header menu', () => {
+    const props = renderTable();
+    fireEvent.click(screen.getByRole('button', { name: /column options for message/i }));
+    fireEvent.click(screen.getByRole('button', { name: /move left/i }));
+    expect(props.onColumnFieldsChange).toHaveBeenCalledWith(['message', 'source']);
   });
 });
