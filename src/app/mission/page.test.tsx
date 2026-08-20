@@ -400,3 +400,30 @@ describe('MissionPage Infiltrator workspace', () => {
     expect(screen.getByTestId('discovery-announcement')).toHaveAttribute('aria-live', 'polite');
   });
 });
+
+describe('MissionPage field browser', () => {
+  it('offers the field browser on the Sentinel log explorer', () => {
+    renderWorkspace('sentinel');
+    expect(screen.getByRole('button', { name: /open field browser/i })).toBeInTheDocument();
+  });
+
+  it('keeps a chosen column layout in the store', () => {
+    renderWorkspace('sentinel');
+    fireEvent.click(screen.getByRole('button', { name: /open field browser/i }));
+    fireEvent.click(screen.getByRole('button', { name: /audit triage/i }));
+    expect(useSimStore.getState().columnFields).toEqual([
+      'user',
+      'verb',
+      'resource',
+      'namespace',
+      'responseCode',
+    ]);
+  });
+
+  it('tables the chosen fields in the results', () => {
+    renderWorkspace('sentinel');
+    fireEvent.click(screen.getByRole('button', { name: /open field browser/i }));
+    fireEvent.click(screen.getByRole('button', { name: /audit triage/i }));
+    expect(screen.getByRole('columnheader', { name: /responseCode/i })).toBeInTheDocument();
+  });
+});

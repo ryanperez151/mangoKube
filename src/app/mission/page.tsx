@@ -81,6 +81,9 @@ function MissionExperience() {
   const pinnedEvidence = useSimStore((state) => state.pinnedEvidence);
   const activeQuery = useSimStore((state) => state.activeQuery);
   const timeRangeId = useSimStore((state) => state.timeRangeId);
+  const columnFields = useSimStore((state) => state.columnFields);
+  const columnSort = useSimStore((state) => state.columnSort);
+  const fieldPanelPinned = useSimStore((state) => state.fieldPanelPinned);
   const decisions = useSimStore((state) => state.decisions);
   const guidanceLevelByStage = useSimStore((state) => state.guidanceLevelByStage);
   const seenBriefingIds = useSimStore((state) => state.seenBriefingIds);
@@ -90,6 +93,9 @@ function MissionExperience() {
   const unpinEvent = useSimStore((state) => state.unpinEvent);
   const setQuery = useSimStore((state) => state.setQuery);
   const setTimeRange = useSimStore((state) => state.setTimeRange);
+  const setColumnFields = useSimStore((state) => state.setColumnFields);
+  const setColumnSort = useSimStore((state) => state.setColumnSort);
+  const setFieldPanelPinned = useSimStore((state) => state.setFieldPanelPinned);
   const requestGuidance = useSimStore((state) => state.requestGuidance);
   const recordAttempt = useSimStore((state) => state.recordAttempt);
   const resetProgress = useSimStore((state) => state.resetProgress);
@@ -342,11 +348,18 @@ function MissionExperience() {
                 ranges={campaign.timeRanges ?? []}
                 timeRangeId={timeRangeId}
                 query={activeQuery}
+                columnFields={columnFields}
+                columnSort={columnSort}
+                fieldPanelPinned={fieldPanelPinned}
+                presets={campaign.columnPresets ?? []}
                 pinnedIds={pinnedEvidence}
                 selectedId={selectedEventId}
                 insertion={queryInsertion}
                 onQueryChange={setQuery}
                 onTimeRangeChange={setTimeRange}
+                onColumnFieldsChange={setColumnFields}
+                onColumnSortChange={setColumnSort}
+                onFieldPanelPinnedChange={setFieldPanelPinned}
                 onSelect={setSelectedEventId}
                 onFailedAttempt={() => recordAttempt(false)}
               />
