@@ -868,3 +868,130 @@ describe('cluster visuals across stage advance', () => {
     expect(state.revealedEdgeIds).toEqual(['e1']);
   });
 });
+
+describe('column layout', () => {
+  beforeEach(() => {
+    useSimStore.getState().resetProgress();
+    useSimStore.getState().startCampaign(sentinelCampaign);
+  });
+
+  it('starts on the layout the table has always shown', () => {
+    expect(useSimStore.getState().columnFields).toEqual(['source', 'message']);
+    expect(useSimStore.getState().columnSort).toEqual({ field: 'time', direction: 'desc' });
+    expect(useSimStore.getState().fieldPanelPinned).toBe(false);
+  });
+
+  it('replaces the selected columns', () => {
+    useSimStore.getState().setColumnFields(['user', 'verb']);
+    expect(useSimStore.getState().columnFields).toEqual(['user', 'verb']);
+  });
+
+  it('accepts an empty column list', () => {
+    useSimStore.getState().setColumnFields([]);
+    expect(useSimStore.getState().columnFields).toEqual([]);
+  });
+
+  it('changes the sort', () => {
+    useSimStore.getState().setColumnSort({ field: 'user', direction: 'asc' });
+    expect(useSimStore.getState().columnSort).toEqual({ field: 'user', direction: 'asc' });
+  });
+
+  it('remembers whether the field panel is pinned', () => {
+    useSimStore.getState().setFieldPanelPinned(true);
+    expect(useSimStore.getState().fieldPanelPinned).toBe(true);
+  });
+
+  it('keeps the layout across a stage advance', () => {
+    useSimStore.getState().setColumnFields(['user', 'verb']);
+    useSimStore.getState().pinEvent('sig-shell-spawn');
+    useSimStore.getState().pinEvent('sig-exec-create');
+    useSimStore.getState().continueFromResolution();
+    expect(useSimStore.getState().stageIndex).toBe(1);
+    expect(useSimStore.getState().columnFields).toEqual(['user', 'verb']);
+  });
+});
+
+describe('column layout persistence', () => {
+  const base = {
+    campaignId: 'sentinel',
+    stageIndex: 0,
+    revealedFacts: [],
+    collectedFacts: [],
+    terminalHistory: [],
+    clusterStatus: 'suspicious',
+    highlightedNodeIds: [],
+    revealedEdgeIds: [],
+    pinnedEvidence: [],
+    activeQuery: '',
+    timeRangeId: 'last-1h',
+    decisions: {},
+    guidanceLevelByStage: {},
+    failedAttemptsByStage: {},
+    seenBriefingIds: [],
+    seenPrimerIds: [],
+    pendingStageResolution: null,
+  };
+
+  it('treats a save written before columns existed as intact', () => {
+    const result = normalizePersistedProgress(base);
+    expect(result.issue).toBe('none');
+    expect(result.progress.columnFields).toEqual(['source', 'message']);
+    expect(result.progress.columnSort).toEqual({ field: 'time', direction: 'desc' });
+    expect(result.progress.fieldPanelPinned).toBe(false);
+  });
+
+  it('keeps a valid saved layout', () => {
+    const result = normalizePersistedProgress({
+      ...base,
+      columnFields: ['user', 'verb'],
+      columnSort: { field: 'user', direction: 'asc' },
+      fieldPanelPinned: true,
+    });
+    expect(result.issue).toBe('none');
+    expect(result.progress.columnFields).toEqual(['user', 'verb']);
+    expect(result.progress.columnSort).toEqual({ field: 'user', direction: 'asc' });
+    expect(result.progress.fieldPanelPinned).toBe(true);
+  });
+
+  it('drops field names the corpus cannot produce', () => {
+    const result = normalizePersistedProgress({
+      ...base,
+      columnFields: ['user', 'not-a-field', 'verb'],
+    });
+    expect(result.issue).toBe('recovered');
+    expect(result.progress.columnFields).toEqual(['user', 'verb']);
+  });
+
+  it('falls back to the time sort when the sort field is unknown', () => {
+    const result = normalizePersistedProgress({
+      ...base,
+      columnSort: { field: 'not-a-field', direction: 'asc' },
+    });
+    expect(result.issue).toBe('recovered');
+    expect(result.progress.columnSort).toEqual({ field: 'time', direction: 'asc' });
+  });
+
+  it('repairs an illegal sort direction', () => {
+    const result = normalizePersistedProgress({
+      ...base,
+      columnSort: { field: 'time', direction: 'sideways' },
+    });
+    expect(result.issue).toBe('recovered');
+    expect(result.progress.columnSort).toEqual({ field: 'time', direction: 'desc' });
+  });
+
+  it('repairs a non-boolean pin flag', () => {
+    const result = normalizePersistedProgress({ ...base, fieldPanelPinned: 'yes' });
+    expect(result.issue).toBe('recovered');
+    expect(result.progress.fieldPanelPinned).toBe(false);
+  });
+
+  it('accepts the pinned time column as a sort field', () => {
+    const result = normalizePersistedProgress({
+      ...base,
+      columnSort: { field: 'time', direction: 'asc' },
+    });
+    expect(result.issue).toBe('none');
+    expect(result.progress.columnSort).toEqual({ field: 'time', direction: 'asc' });
+  });
+});

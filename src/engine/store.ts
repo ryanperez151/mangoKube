@@ -4,6 +4,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { parseCommand } from './terminalParser';
 import { canChooseDecision, isChoiceVisible } from './conditions';
 import { chapter1Campaigns } from '@/content/chapter1';
+import { DEFAULT_COLUMN_FIELDS, DEFAULT_COLUMN_SORT } from './logFields';
 import {
   clearRecoverablePersistenceIssue,
   initialPersistedProgress,
@@ -16,6 +17,7 @@ import type {
   Campaign,
   CampaignId,
   ClusterDelta,
+  ColumnSort,
   GuidanceLevel,
   PendingStageResolution,
   TerminalEntry,
@@ -39,6 +41,9 @@ interface PersistedProgress {
   pinnedEvidence: string[];
   activeQuery: string;
   timeRangeId: string;
+  columnFields: string[];
+  columnSort: ColumnSort;
+  fieldPanelPinned: boolean;
   decisions: Record<string, string>;
   guidanceLevelByStage: Record<string, GuidanceLevel>;
   failedAttemptsByStage: Record<string, number>;
@@ -60,6 +65,9 @@ interface SimState {
   pinnedEvidence: string[];
   activeQuery: string;
   timeRangeId: string;
+  columnFields: string[];
+  columnSort: ColumnSort;
+  fieldPanelPinned: boolean;
   decisions: Record<string, string>;
   guidanceLevelByStage: Record<string, GuidanceLevel>;
   failedAttemptsByStage: Record<string, number>;
@@ -73,6 +81,9 @@ interface SimState {
   unpinEvent: (eventId: string) => void;
   setQuery: (query: string) => void;
   setTimeRange: (rangeId: string) => void;
+  setColumnFields: (fields: string[]) => void;
+  setColumnSort: (sort: ColumnSort) => void;
+  setFieldPanelPinned: (pinned: boolean) => void;
   chooseDecision: (decisionId: string, optionId: string) => void;
   requestGuidance: () => void;
   recordAttempt: (successful: boolean) => void;
@@ -263,6 +274,12 @@ export const useSimStore = create<SimState>()(
 
         setTimeRange: (rangeId) => set({ timeRangeId: rangeId }),
 
+        setColumnFields: (fields) => set({ columnFields: fields }),
+
+        setColumnSort: (sort) => set({ columnSort: sort }),
+
+        setFieldPanelPinned: (pinned) => set({ fieldPanelPinned: pinned }),
+
         chooseDecision: (decisionId, optionId) => {
           const state = get();
           const stage = state.campaign?.stages[state.stageIndex];
@@ -351,6 +368,9 @@ export const useSimStore = create<SimState>()(
         pinnedEvidence: state.pinnedEvidence,
         activeQuery: state.activeQuery,
         timeRangeId: state.timeRangeId,
+        columnFields: state.columnFields,
+        columnSort: state.columnSort,
+        fieldPanelPinned: state.fieldPanelPinned,
         decisions: state.decisions,
         guidanceLevelByStage: state.guidanceLevelByStage,
         failedAttemptsByStage: state.failedAttemptsByStage,
@@ -358,7 +378,7 @@ export const useSimStore = create<SimState>()(
         seenPrimerIds: state.seenPrimerIds,
         pendingStageResolution: state.pendingStageResolution,
       }),
-      version: 2,
+      version: 3,
       merge: (persisted, current) => {
         const normalized = normalizePersistedProgress(persisted);
         reportNormalization(normalized.issue);
@@ -384,6 +404,9 @@ export const useSimStore = create<SimState>()(
           | 'seenBriefingIds'
           | 'seenPrimerIds'
           | 'pendingStageResolution'
+          | 'columnFields'
+          | 'columnSort'
+          | 'fieldPanelPinned'
         > = {
           decisions: {},
           guidanceLevelByStage: {},
@@ -391,6 +414,9 @@ export const useSimStore = create<SimState>()(
           seenBriefingIds: [],
           seenPrimerIds: [],
           pendingStageResolution: null,
+          columnFields: [...DEFAULT_COLUMN_FIELDS],
+          columnSort: { ...DEFAULT_COLUMN_SORT },
+          fieldPanelPinned: false,
         };
         if (version < 2 && state) {
           const decisions = { ...defaults.decisions, ...(state.decisions ?? {}) };

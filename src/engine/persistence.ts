@@ -1,8 +1,10 @@
 import { useSyncExternalStore } from 'react';
 import type { StateStorage } from 'zustand/middleware';
 import { chapter1Campaigns } from '@/content/chapter1';
+import { DEFAULT_COLUMN_FIELDS, DEFAULT_COLUMN_SORT, TIME_FIELD } from './logFields';
 import type {
   CampaignId,
+  ColumnSort,
   GuidanceLevel,
   PendingStageResolution,
   TerminalEntry,
@@ -22,6 +24,11 @@ export interface PersistedProgress {
   pinnedEvidence: string[];
   activeQuery: string;
   timeRangeId: string;
+  /** Selectable result columns in table order. Never contains `time`. */
+  columnFields: string[];
+  columnSort: ColumnSort;
+  /** Whether the field browser stays open as a split rather than an overlay. */
+  fieldPanelPinned: boolean;
   decisions: Record<string, string>;
   guidanceLevelByStage: Record<string, GuidanceLevel>;
   failedAttemptsByStage: Record<string, number>;
@@ -43,6 +50,9 @@ export const initialPersistedProgress: PersistedProgress = {
   pinnedEvidence: [],
   activeQuery: '',
   timeRangeId: 'last-1h',
+  columnFields: [...DEFAULT_COLUMN_FIELDS],
+  columnSort: { ...DEFAULT_COLUMN_SORT },
+  fieldPanelPinned: false,
   decisions: {},
   guidanceLevelByStage: {},
   failedAttemptsByStage: {},
@@ -111,7 +121,12 @@ const PERSISTED_PROGRESS_KEYS = new Set(Object.keys(initialPersistedProgress));
  * genuine, readable save — treating its absence as corruption would discard
  * real progress and show the player a recovery warning for nothing.
  */
-const OPTIONAL_PROGRESS_KEYS = new Set(['seenPrimerIds']);
+const OPTIONAL_PROGRESS_KEYS = new Set([
+  'seenPrimerIds',
+  'columnFields',
+  'columnSort',
+  'fieldPanelPinned',
+]);
 const SAFE_DECISION_DEFAULTS: Record<CampaignId, Readonly<Record<string, string>>> = {
   sentinel: { 'containment-timing': 'hunt-first' },
   infiltrator: { 'operational-order': 'exfil-first' },
@@ -153,6 +168,13 @@ function isCanonicalEmptyProgress(source: Record<string, unknown>): boolean {
     source.clusterStatus === 'nominal' &&
     source.activeQuery === '' &&
     source.timeRangeId === 'last-1h' &&
+    (source.columnFields === undefined ||
+      (Array.isArray(source.columnFields) &&
+        source.columnFields.join(',') === DEFAULT_COLUMN_FIELDS.join(','))) &&
+    (source.columnSort === undefined ||
+      (asRecord(source.columnSort).field === DEFAULT_COLUMN_SORT.field &&
+        asRecord(source.columnSort).direction === DEFAULT_COLUMN_SORT.direction)) &&
+    (source.fieldPanelPinned === undefined || source.fieldPanelPinned === false) &&
     source.pendingStageResolution === null &&
     emptyArrays.every((value) => Array.isArray(value) && value.length === 0) &&
     emptyRecords.every((value) => {
@@ -280,6 +302,56 @@ export function normalizePersistedProgress(value: unknown): {
       : timeRanges[0]?.id ?? 'last-1h';
   if (timeRangeId !== source.timeRangeId) recovered = true;
 
+  // Column layout. `source` and `message` are promoted fields every event
+  // carries, so they belong in the valid set alongside the corpus's own keys.
+  const corpusFields = new Set<string>([
+    'source',
+    'message',
+    ...(campaign.logCorpus ?? []).flatMap((event) => Object.keys(event.fields)),
+  ]);
+
+  const rawColumnFields = source.columnFields;
+  const columnFields = Array.isArray(rawColumnFields)
+    ? [
+        ...new Set(
+          rawColumnFields.filter(
+            (field): field is string => typeof field === 'string' && corpusFields.has(field)
+          )
+        ),
+      ].slice(0, 12)
+    : [...DEFAULT_COLUMN_FIELDS];
+  if (
+    rawColumnFields !== undefined &&
+    (!Array.isArray(rawColumnFields) || columnFields.length !== rawColumnFields.length)
+  ) {
+    recovered = true;
+  }
+
+  const rawSort = asRecord(source.columnSort);
+  const sortField =
+    typeof rawSort.field === 'string' &&
+    (rawSort.field === TIME_FIELD || corpusFields.has(rawSort.field))
+      ? rawSort.field
+      : DEFAULT_COLUMN_SORT.field;
+  const sortDirection = rawSort.direction === 'asc' || rawSort.direction === 'desc'
+    ? rawSort.direction
+    : DEFAULT_COLUMN_SORT.direction;
+  const columnSort: ColumnSort = { field: sortField, direction: sortDirection };
+  if (
+    source.columnSort !== undefined &&
+    (sortField !== rawSort.field || sortDirection !== rawSort.direction)
+  ) {
+    recovered = true;
+  }
+
+  const fieldPanelPinned = source.fieldPanelPinned === true;
+  if (
+    source.fieldPanelPinned !== undefined &&
+    typeof source.fieldPanelPinned !== 'boolean'
+  ) {
+    recovered = true;
+  }
+
   return {
     progress: {
       campaignId,
@@ -293,6 +365,9 @@ export function normalizePersistedProgress(value: unknown): {
       pinnedEvidence,
       activeQuery: typeof source.activeQuery === 'string' ? source.activeQuery : '',
       timeRangeId,
+      columnFields,
+      columnSort,
+      fieldPanelPinned,
       decisions,
       guidanceLevelByStage,
       failedAttemptsByStage,
