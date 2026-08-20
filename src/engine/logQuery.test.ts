@@ -54,6 +54,13 @@ describe('parseQuery', () => {
     expect(result).toEqual({ ok: false, error: 'Unterminated quote in query.' });
   });
 
+  it('resolves an escaped quote inside a quoted value', () => {
+    const result = parseQuery('reason="RBAC: allowed by ClusterRoleBinding \\"ci-deploy-bot-binding\\""');
+    expect(result.ok && result.ast.predicates[0].value).toBe(
+      'RBAC: allowed by ClusterRoleBinding "ci-deploy-bot-binding"'
+    );
+  });
+
   it('rejects a negated bare term rather than silently including it', () => {
     expect(parseQuery('-healthz')).toEqual({
       ok: false,

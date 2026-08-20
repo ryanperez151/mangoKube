@@ -8,6 +8,7 @@ import {
   summarizeFieldValues,
   toggleColumnField,
 } from './logFields';
+import { parseQuery } from './logQuery';
 import type { LogEvent } from '@/content/types';
 
 const events: LogEvent[] = [
@@ -288,6 +289,26 @@ describe('applyValueFilter', () => {
   it('leaves bare search terms alone', () => {
     expect(applyValueFilter('genome source=edr', 'severity', 'high', 'include')).toBe(
       'genome source=edr severity=high'
+    );
+  });
+
+  it('round-trips a value that carries its own quotes, then toggles cleanly off', () => {
+    // The reason field on sig-binding-in-effect — the corpus event that names
+    // the binding for free — wraps a quoted resource name inside the value.
+    const value = 'RBAC: allowed by ClusterRoleBinding "ci-deploy-bot-binding"';
+    const added = applyValueFilter('', 'reason', value, 'include');
+    const parsed = parseQuery(added);
+
+    expect(parsed.ok && parsed.ast.predicates[0].value).toBe(value);
+    expect(applyValueFilter(added, 'reason', value, 'include')).toBe('');
+  });
+
+  it('starts fresh rather than appending to a query the parser already rejects', () => {
+    // scanTokens returns null for an unterminated quote, same as parseQuery's
+    // error path. There is no salvageable text to append to in that case, so
+    // the rewrite discards it and returns just the new predicate.
+    expect(applyValueFilter('message="never closed', 'severity', 'high', 'include')).toBe(
+      'severity=high'
     );
   });
 });

@@ -7,41 +7,75 @@ import type {
   TimeRange,
 } from '@/content/types';
 
+export interface ScannedToken {
+  /**
+   * Exact source text for this token, quotes and escapes untouched — what a
+   * rewriter (see `logFields.applyValueFilter`) must reproduce verbatim for
+   * the parts of the query it isn't touching.
+   */
+  raw: string;
+  /**
+   * Surrounding quotes removed and `\"` / `\\` resolved to literal
+   * characters — what parsing and value comparisons operate on.
+   */
+  value: string;
+}
+
 /**
  * Splits on whitespace, but keeps double-quoted runs together so
- * `message="exec session started"` survives as a single token.
+ * `message="exec session started"` survives as a single token. `\"` and
+ * `\\` escape inside a quoted run — the same minimal vocabulary Splunk
+ * itself uses — so a value that carries its own quotes (an RBAC decision
+ * naming a resource in quotes, say) round-trips through `applyValueFilter`
+ * instead of mis-splitting on the next scan. Shared by `parseQuery`, which
+ * needs the unescaped value, and `applyValueFilter`, which needs the raw
+ * text to leave untouched predicates byte-for-byte alone.
  */
-function tokenize(input: string): string[] | null {
-  const tokens: string[] = [];
-  let current = '';
+export function scanTokens(input: string): ScannedToken[] | null {
+  const chars = Array.from(input);
+  const tokens: ScannedToken[] = [];
+  let raw = '';
+  let value = '';
   let inQuotes = false;
 
-  for (const char of input) {
+  for (let i = 0; i < chars.length; i++) {
+    const char = chars[i];
+
+    if (inQuotes && char === '\\' && (chars[i + 1] === '"' || chars[i + 1] === '\\')) {
+      raw += char + chars[i + 1];
+      value += chars[i + 1];
+      i++;
+      continue;
+    }
     if (char === '"') {
       inQuotes = !inQuotes;
+      raw += char;
       continue;
     }
     if (!inQuotes && /\s/.test(char)) {
-      if (current) tokens.push(current);
-      current = '';
+      if (raw) tokens.push({ raw, value });
+      raw = '';
+      value = '';
       continue;
     }
-    current += char;
+    raw += char;
+    value += char;
   }
 
   if (inQuotes) return null;
-  if (current) tokens.push(current);
+  if (raw) tokens.push({ raw, value });
   return tokens;
 }
 
 export function parseQuery(input: string): QueryParseResult {
-  const tokens = tokenize(input.trim());
+  const tokens = scanTokens(input.trim());
   if (tokens === null) return { ok: false, error: 'Unterminated quote in query.' };
 
   const predicates: QueryPredicate[] = [];
   const terms: string[] = [];
 
-  for (const token of tokens) {
+  for (const scanned of tokens) {
+    const token = scanned.value;
     const negated = token.startsWith('-');
     const body = negated ? token.slice(1) : token;
     const equalsAt = body.indexOf('=');

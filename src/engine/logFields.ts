@@ -1,5 +1,5 @@
 import type { ColumnSort, LogEvent, LogSource } from '@/content/types';
-import { fieldValue } from './logQuery';
+import { fieldValue, scanTokens } from './logQuery';
 
 export { fieldValue };
 
@@ -177,48 +177,27 @@ interface ParsedToken {
   negated: boolean;
 }
 
-/**
- * Splits a query into raw tokens, keeping quoted runs and their quotes intact.
- * Deliberately not `logQuery`'s tokenizer: that one strips quotes because it is
- * parsing, and this one is rewriting text the player will see and edit.
- */
-function rawTokens(query: string): string[] {
-  const tokens: string[] = [];
-  let current = '';
-  let inQuotes = false;
-
-  for (const char of query) {
-    if (char === '"') {
-      inQuotes = !inQuotes;
-      current += char;
-      continue;
-    }
-    if (!inQuotes && /\s/.test(char)) {
-      if (current) tokens.push(current);
-      current = '';
-      continue;
-    }
-    current += char;
-  }
-
-  if (current) tokens.push(current);
-  return tokens;
-}
-
+/** Uses the already-unescaped value `scanTokens` produced — no quote-stripping left to do here. */
 function parseToken(token: string): ParsedToken | null {
   const negated = token.startsWith('-');
   const body = negated ? token.slice(1) : token;
   const equalsAt = body.indexOf('=');
   if (equalsAt <= 0) return null;
 
-  const value = body.slice(equalsAt + 1).replace(/^"(.*)"$/, '$1');
+  const value = body.slice(equalsAt + 1);
   if (!value) return null;
   return { field: body.slice(0, equalsAt), value, negated };
 }
 
+/**
+ * Escapes `"` and `\` before quoting so a value that carries its own quotes
+ * (an RBAC decision naming a resource in quotes, say) survives being scanned
+ * back out by `scanTokens` instead of prematurely closing the run.
+ */
 function formatToken(field: string, value: string, mode: ValueFilterMode): string {
-  const quoted = /\s/.test(value) ? `"${value}"` : value;
-  return `${mode === 'exclude' ? '-' : ''}${field}=${quoted}`;
+  const needsQuotes = /[\s"\\]/.test(value);
+  const body = needsQuotes ? `"${value.replace(/[\\"]/g, '\\$&')}"` : value;
+  return `${mode === 'exclude' ? '-' : ''}${field}=${body}`;
 }
 
 /**
@@ -233,15 +212,19 @@ export function applyValueFilter(
   value: string,
   mode: ValueFilterMode
 ): string {
-  const tokens = rawTokens(query);
-  const existing = tokens
-    .map(parseToken)
-    .find((parsed): parsed is ParsedToken => parsed !== null && parsed.field === field);
+  const scanned = scanTokens(query);
+  // An unterminated quote is a query `parseQuery` already rejects — there is
+  // no salvageable text to append the click to, so start clean instead of
+  // building on top of text the player can't currently run.
+  if (scanned === null) return formatToken(field, value, mode);
 
-  const others = tokens.filter((token) => {
-    const parsed = parseToken(token);
-    return parsed === null || parsed.field !== field;
-  });
+  const tokens = scanned.map((token) => ({ raw: token.raw, parsed: parseToken(token.value) }));
+  type Entry = (typeof tokens)[number];
+  const isMatch = (entry: Entry): entry is Entry & { parsed: ParsedToken } =>
+    entry.parsed !== null && entry.parsed.field === field;
+
+  const existing = tokens.find(isMatch)?.parsed;
+  const others = tokens.filter((entry) => !isMatch(entry)).map(({ raw }) => raw);
 
   const isToggleOff =
     existing !== undefined &&
