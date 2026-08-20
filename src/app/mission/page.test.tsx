@@ -346,6 +346,27 @@ describe('MissionPage Sentinel workspace', () => {
 });
 
 describe('MissionPage Infiltrator workspace', () => {
+  it('renders the Infiltrator shell banner and prompt around ambient output', () => {
+    renderWorkspace('infiltrator');
+
+    expect(screen.getByText('MangoCorp Build Runner 4.7.1 // recovery shell')).toBeInTheDocument();
+    expect(screen.getByText('root@build-runner:/workspace$')).toBeInTheDocument();
+
+    submitTerminal('help');
+    expect(screen.getByText('root@build-runner:/workspace$ help')).toBeInTheDocument();
+    expect(screen.getByText(/Guidance tab is ripe with the next nudge/i)).toBeInTheDocument();
+  });
+
+  it('Tab-completes a unique campaign-wide ambient command', () => {
+    renderWorkspace('infiltrator');
+    const input = screen.getByLabelText('terminal input');
+
+    fireEvent.change(input, { target: { value: 'whoa' } });
+    fireEvent.keyDown(input, { key: 'Tab' });
+
+    expect(input).toHaveValue('whoami');
+  });
+
   it('uses exactly Objectives, Cluster, and Guidance tabs and never renders an always-visible command list', () => {
     renderWorkspace('infiltrator');
     const tablist = screen.getByRole('tablist', { name: 'Mission context' });

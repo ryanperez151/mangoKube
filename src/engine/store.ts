@@ -216,7 +216,13 @@ export const useSimStore = create<SimState>()(
           if (!state.campaign) return;
           const stage = state.campaign.stages[state.stageIndex];
           if (state.pendingStageResolution) return;
-          const outcome = parseCommand(input, stage, new Set(state.revealedFacts), state.decisions);
+          const outcome = parseCommand(
+            input,
+            stage,
+            new Set(state.revealedFacts),
+            state.decisions,
+            state.campaign.terminalProfile?.ambientCommands
+          );
 
           if (!outcome) {
             set({
@@ -229,12 +235,25 @@ export const useSimStore = create<SimState>()(
             return;
           }
 
+          const terminalHistory = [
+            ...state.terminalHistory,
+            { input, output: outcome.output },
+          ];
+          const hasProgressEffect =
+            outcome.advances === true ||
+            (outcome.revealsFacts?.length ?? 0) > 0 ||
+            outcome.clusterDelta !== undefined;
+          if (!hasProgressEffect) {
+            set({ terminalHistory });
+            return;
+          }
+
           const revealsNewFact = (outcome.revealsFacts ?? []).some(
             (factId) => !state.collectedFacts.includes(factId)
           );
           applyReveal(
             outcome.revealsFacts ?? [],
-            { terminalHistory: [...state.terminalHistory, { input, output: outcome.output }] },
+            { terminalHistory },
             outcome.advances === true,
             outcome.clusterDelta
           );

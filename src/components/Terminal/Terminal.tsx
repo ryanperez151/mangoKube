@@ -6,12 +6,22 @@ import type { TerminalEntry } from '@/content/types';
 interface TerminalProps {
   history: TerminalEntry[];
   availableCommands: Array<{ description: string }>;
+  prompt?: string;
+  banner?: readonly string[];
   value: string;
   onChange: (value: string) => void;
   onSubmit: (input: string) => void;
 }
 
-export function Terminal({ history, availableCommands, value, onChange, onSubmit }: TerminalProps) {
+export function Terminal({
+  history,
+  availableCommands,
+  prompt = '$',
+  banner = [],
+  value,
+  onChange,
+  onSubmit,
+}: TerminalProps) {
   const [historyIndex, setHistoryIndex] = useState<number | null>(null);
   const savedDraft = useRef('');
   const transcriptRef = useRef<HTMLDivElement>(null);
@@ -89,7 +99,16 @@ export function Terminal({ history, availableCommands, value, onChange, onSubmit
         className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4"
         data-testid="terminal-history"
       >
-        {history.length === 0 && (
+        {banner.length > 0 && (
+          <div aria-label="Session banner" className="space-y-1 text-xs leading-5 text-slate-400">
+            {banner.map((line, index) => (
+              <div key={index} className="whitespace-pre-wrap break-words">
+                {line}
+              </div>
+            ))}
+          </div>
+        )}
+        {history.length === 0 && banner.length === 0 && (
           <p className="text-xs leading-5 text-slate-400">Console ready. Type a command to begin.</p>
         )}
         {history.map((entry, index) => (
@@ -99,7 +118,7 @@ export function Terminal({ history, availableCommands, value, onChange, onSubmit
             aria-label={`Command ${index + 1}: ${entry.input}`}
             className="border-l border-white/15 pl-3"
           >
-            <div className="break-words text-mango-300">$ {entry.input}</div>
+            <div className="break-words text-mango-300">{prompt} {entry.input}</div>
             <div className="mt-1 space-y-1 text-slate-300">
               {entry.output.map((line, lineIndex) => (
                 <div key={lineIndex} className="whitespace-pre-wrap break-words">
@@ -112,7 +131,7 @@ export function Terminal({ history, availableCommands, value, onChange, onSubmit
       </div>
 
       <form onSubmit={handleSubmit} className="flex items-center gap-2 border-t border-white/10 bg-black/40 px-4 py-3">
-        <span className="text-mango-500" aria-hidden="true">$</span>
+        <span className="shrink-0 text-xs text-mango-500" aria-hidden="true">{prompt}</span>
         <input
           className="min-w-0 flex-1 bg-transparent text-slate-100 outline-none placeholder:text-slate-600"
           value={value}

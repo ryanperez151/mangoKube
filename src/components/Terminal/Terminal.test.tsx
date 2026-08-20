@@ -25,6 +25,18 @@ describe('Terminal', () => {
     expect(screen.getByRole('group', { name: 'Command 1: kubectl get pods' })).toBeInTheDocument();
   });
 
+  it('frames the transcript with a campaign banner and prompt', () => {
+    renderTerminal({
+      banner: ['MangoCorp build runner shell ready.'],
+      prompt: 'root@build-runner:/workspace$',
+      history: [{ input: 'whoami', output: ['root'] }],
+    });
+
+    expect(screen.getByText('MangoCorp build runner shell ready.')).toBeInTheDocument();
+    expect(screen.getByText('root@build-runner:/workspace$ whoami')).toBeInTheDocument();
+    expect(screen.getByText('root@build-runner:/workspace$')).toBeInTheDocument();
+  });
+
   it('does not expose exact commands before the player types', () => {
     renderTerminal({
       availableCommands: [{ description: 'kubectl get pods' }, { description: 'whoami' }],

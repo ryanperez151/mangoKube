@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { findAdvancePath } from '@/engine/reachability';
 import { isChoiceVisible } from '@/engine/conditions';
+import { parseCommand } from '@/engine/terminalParser';
 import { infiltratorCampaign } from './infiltrator';
 
 describe('infiltratorCampaign', () => {
@@ -53,6 +54,93 @@ describe('infiltratorCampaign', () => {
       expect(new Set(commands.flatMap((command) => command.outcome.revealsFacts ?? []))).toEqual(
         new Set(expectedFacts)
       );
+    }
+  });
+
+  it('provides useful campaign-wide shell commands without changing mission state', () => {
+    const profile = infiltratorCampaign.terminalProfile;
+    expect(profile).toBeDefined();
+    if (!profile) return;
+
+    expect(profile.prompt).not.toBe('');
+    expect(profile.banner.length).toBeGreaterThan(0);
+
+    const inputs = [
+      'help',
+      'whoami',
+      'id',
+      'hostname',
+      'uname -a',
+      'pwd',
+      'ls -la',
+      'find . -maxdepth 2',
+      'cat /workspace/README.md',
+      'cat /etc/os-release',
+      'printenv',
+      'ip addr',
+      'ifconfig',
+      'ps aux',
+      'which kubectl',
+      'kubectl version --client',
+      'mango',
+    ];
+
+    for (const input of inputs) {
+      for (const stage of [infiltratorCampaign.stages[0], infiltratorCampaign.stages.at(-1)!]) {
+        const outcome = parseCommand(input, stage, new Set(), {}, profile.ambientCommands);
+        expect(outcome, `"${input}" unavailable during ${stage.id}`).not.toBeNull();
+        expect(outcome?.revealsFacts, `"${input}" reveals a fact`).toBeUndefined();
+        expect(outcome?.advances, `"${input}" advances a stage`).toBeUndefined();
+        expect(outcome?.clusterDelta, `"${input}" changes the cluster`).toBeUndefined();
+      }
+    }
+
+    const help = parseCommand('help', infiltratorCampaign.stages[0], new Set(), {}, profile.ambientCommands);
+    expect(help?.output.join('\n')).toMatch(/Guidance tab/i);
+    expect(help?.output.join('\n')).toMatch(/mango|fruit/i);
+
+    const mango = parseCommand('mango', infiltratorCampaign.stages[0], new Set(), {}, profile.ambientCommands);
+    expect(mango?.output.join('\n')).toMatch(/MANGO/);
+  });
+
+  it('uses absolute paths when find starts from /workspace', () => {
+    const profile = infiltratorCampaign.terminalProfile;
+    expect(profile).toBeDefined();
+    if (!profile) return;
+
+    const outcome = parseCommand(
+      'find /workspace -maxdepth 2',
+      infiltratorCampaign.stages[0],
+      new Set(),
+      {},
+      profile.ambientCommands
+    );
+
+    expect(outcome?.output).toEqual([
+      '/workspace',
+      '/workspace/.mango',
+      '/workspace/README.md',
+      '/workspace/runner.log',
+      '/workspace/runner.sh',
+    ]);
+  });
+
+  it('keeps stage-specific mission commands out of local help', () => {
+    const profile = infiltratorCampaign.terminalProfile;
+    expect(profile).toBeDefined();
+    if (!profile) return;
+
+    const help = parseCommand(
+      'help',
+      infiltratorCampaign.stages[0],
+      new Set(),
+      {},
+      profile.ambientCommands
+    );
+    const helpText = help?.output.join('\n') ?? '';
+
+    for (const command of infiltratorCampaign.stages.flatMap((stage) => stage.commands)) {
+      expect(helpText, `help leaked "${command.description}"`).not.toContain(command.description);
     }
   });
 
