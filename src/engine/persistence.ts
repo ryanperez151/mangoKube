@@ -304,11 +304,20 @@ export function normalizePersistedProgress(value: unknown): {
 
   // Column layout. `source` and `message` are promoted fields every event
   // carries, so they belong in the valid set alongside the corpus's own keys.
-  const corpusFields = new Set<string>([
-    'source',
-    'message',
-    ...(campaign.logCorpus ?? []).flatMap((event) => Object.keys(event.fields)),
-  ]);
+  // `TIME_FIELD` is excluded on principle, not because it's needed today: no
+  // corpus event happens to use that key, so nothing currently forces this
+  // exclusion to matter. But `columnFields` and the pinned time column are
+  // rendered by two different code paths in `ResultsTable`, so if a future
+  // event ever did carry a `time` field, an unfiltered set would let a saved
+  // `columnFields: ['time', ...]` re-render it as a second, redundant `time`
+  // column sitting right next to the real one.
+  const corpusFields = new Set<string>(
+    [
+      'source',
+      'message',
+      ...(campaign.logCorpus ?? []).flatMap((event) => Object.keys(event.fields)),
+    ].filter((field) => field !== TIME_FIELD)
+  );
 
   const rawColumnFields = source.columnFields;
   const columnFields = Array.isArray(rawColumnFields)

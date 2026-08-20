@@ -994,4 +994,13 @@ describe('column layout persistence', () => {
     expect(result.issue).toBe('none');
     expect(result.progress.columnSort).toEqual({ field: 'time', direction: 'asc' });
   });
+
+  it('never lets the pinned time column double up as a selectable column', () => {
+    const result = normalizePersistedProgress({
+      ...base,
+      columnFields: ['time', 'user'],
+    });
+    expect(result.issue).toBe('recovered');
+    expect(result.progress.columnFields).toEqual(['user']);
+  });
 });
