@@ -126,6 +126,46 @@ export const sentinelPrimer: CampaignPrimer = {
       ],
     },
     {
+      id: 'building-a-table',
+      title: 'Building a table',
+      body: [
+        'The results table opens on three columns because that is a safe default, not because it is the right view. The Fields panel down the left of the results lists every field your sources produce, grouped by the source that writes it, and turns any of them into a column.',
+        'Each field carries a count: how many events in your current results actually have it. A field sitting at zero is not empty — that source never recorded it. Knowing which source can answer a question is faster than asking every source in turn.',
+        'Tabling the right two or three fields is the whole trick. An outlier stops being a sentence you have to read and becomes a value that looks wrong in a column you are already scanning.',
+      ],
+      entries: [
+        {
+          term: 'Fields panel',
+          meaning: 'Opens from the left edge of the results.',
+          note: 'Pin it if you are going to be working in one source for a while.',
+        },
+        {
+          term: 'user · 312 · 74%',
+          meaning: 'The field, how many current results carry it, and what share that is.',
+          note: 'Low coverage usually means the field belongs to a source your search has mostly filtered out.',
+        },
+        {
+          term: 'Expanding a field',
+          meaning: 'Lists its most common values with counts.',
+          note: 'The fastest way to notice that one value in a column is not like the others.',
+        },
+        {
+          term: '+ and −',
+          meaning: 'Add that value to your search, or exclude it.',
+          note: 'The search bar shows the syntax it wrote for you — edit it from there.',
+        },
+        {
+          term: 'Presets',
+          meaning: 'Ready-made column sets for audit, EDR, and authorization triage.',
+        },
+        {
+          term: 'Column headers',
+          meaning: 'Click to sort; the ⋮ menu moves or removes the column.',
+          note: 'Time sorts newest-first, which is where an incident feed wants to be.',
+        },
+      ],
+    },
+    {
       id: 'time-is-a-filter',
       title: 'Time is a filter too',
       body: [
