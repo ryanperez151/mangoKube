@@ -40,20 +40,27 @@ function renderExplorer(overrides: Partial<React.ComponentProps<typeof LogExplor
     ranges,
     timeRangeId: 'last-1h',
     query: '',
+    columnFields: ['source', 'message'],
+    columnSort: { field: 'time', direction: 'desc' as const },
+    fieldPanelPinned: false,
+    presets: [{ id: 'audit-triage', label: 'Audit triage', fields: ['severity'] }],
     suggestions: [{ label: 'High severity', query: 'severity=high' }],
     hint: 'Try narrowing by severity.',
     pinnedIds: [] as string[],
     selectedId: null as string | null,
     onQueryChange: vi.fn(),
     onTimeRangeChange: vi.fn(),
+    onColumnFieldsChange: vi.fn(),
+    onColumnSortChange: vi.fn(),
+    onFieldPanelPinnedChange: vi.fn(),
     onPin: vi.fn(),
     onUnpin: vi.fn(),
     onSelect: vi.fn(),
     onFailedAttempt: vi.fn(),
     ...overrides,
   };
-  render(<LogExplorer {...props} />);
-  return props;
+  const view = render(<LogExplorer {...props} />);
+  return { ...props, rerender: view.rerender };
 }
 
 describe('LogExplorer', () => {
@@ -116,5 +123,60 @@ describe('LogExplorer', () => {
     renderExplorer();
     expect(screen.getByTestId('result-viewport')).toHaveClass('overflow-y-auto');
     expect(screen.getByLabelText('log explorer')).toHaveClass('min-h-0');
+  });
+
+  it('opens the field browser from the edge tab', () => {
+    renderExplorer();
+    expect(screen.queryByTestId('field-panel')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /open field browser/i }));
+    expect(screen.getByTestId('field-panel')).toBeInTheDocument();
+  });
+
+  it('keeps the field browser open when it is pinned', () => {
+    renderExplorer({ fieldPanelPinned: true });
+    expect(screen.getByTestId('field-panel')).toBeInTheDocument();
+  });
+
+  it('rewrites and runs the query when a value is filtered', () => {
+    const props = renderExplorer({ query: 'source=edr' });
+    fireEvent.click(screen.getByRole('button', { name: /open field browser/i }));
+    fireEvent.click(screen.getByRole('button', { name: /show values for severity/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Filter to severity=high' }));
+    expect(props.onQueryChange).toHaveBeenCalledWith('source=edr severity=high');
+  });
+
+  it('does not count a value click as a failed attempt', () => {
+    const props = renderExplorer({ query: 'severity=low' });
+    fireEvent.click(screen.getByRole('button', { name: /open field browser/i }));
+    fireEvent.click(screen.getByRole('button', { name: /show values for severity/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Exclude severity=low' }));
+    expect(props.onFailedAttempt).not.toHaveBeenCalled();
+  });
+
+  it('applies a preset to the columns', () => {
+    const props = renderExplorer();
+    fireEvent.click(screen.getByRole('button', { name: /open field browser/i }));
+    fireEvent.click(screen.getByRole('button', { name: /audit triage/i }));
+    expect(props.onColumnFieldsChange).toHaveBeenCalledWith(['severity']);
+  });
+
+  it('sorts the rendered rows by the chosen column', () => {
+    renderExplorer({ columnSort: { field: 'time', direction: 'asc' } });
+    const rows = screen.getAllByRole('row').slice(1);
+    expect(rows[0]).toHaveAttribute('data-testid', 'row-e1');
+  });
+
+  it('leaves the field browser open as an overlay when unpinning', () => {
+    // A mock onFieldPanelPinnedChange does not, by itself, change the
+    // `fieldPanelPinned` prop — a real parent (the store, from Task 10)
+    // would re-render with the new value, so simulate that here with
+    // `rerender`. Without it this test cannot distinguish the fixed
+    // handler from the buggy one described in the brief, since the panel
+    // would still read as open purely from the stale `pinned` prop.
+    const props = renderExplorer({ fieldPanelPinned: true });
+    fireEvent.click(screen.getByRole('button', { name: /unpin field browser/i }));
+    expect(props.onFieldPanelPinnedChange).toHaveBeenCalledWith(false);
+    props.rerender(<LogExplorer {...props} fieldPanelPinned={false} />);
+    expect(screen.getByTestId('field-panel')).toBeInTheDocument();
   });
 });
