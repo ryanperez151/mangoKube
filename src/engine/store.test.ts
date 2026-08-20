@@ -11,6 +11,17 @@ const testCampaign: Campaign = {
   id: 'infiltrator',
   title: 'Test Campaign',
   tagline: '',
+  terminalProfile: {
+    prompt: 'root@test:/workspace$',
+    banner: ['Test shell ready.'],
+    ambientCommands: [
+      {
+        match: /^whoami$/i,
+        description: 'whoami',
+        outcome: { output: ['root'] },
+      },
+    ],
+  },
   factLibrary: {},
   debrief: { narrative: [], lesson: '', nextChapterTeaser: '' },
   stages: [
@@ -131,6 +142,36 @@ describe('useSimStore', () => {
     const state = useSimStore.getState();
     expect(state.stageIndex).toBe(0);
     expect(state.terminalHistory[0].output).toEqual(['Command not recognized in this context.']);
+  });
+
+  it('runs an ambient command without progressing or escalating guidance', () => {
+    useSimStore.getState().startCampaign(testCampaign);
+    useSimStore.getState().runCommand('whoami');
+
+    const state = useSimStore.getState();
+    expect(state.terminalHistory).toEqual([{ input: 'whoami', output: ['root'] }]);
+    expect(state.stageIndex).toBe(0);
+    expect(state.collectedFacts).toEqual([]);
+    expect(state.pendingStageResolution).toBeNull();
+    expect(state.failedAttemptsByStage).toEqual({});
+    expect(state.guidanceLevelByStage).toEqual({});
+  });
+
+  it('does not let an ambient command reconcile an already-complete recovered stage', () => {
+    useSimStore.getState().startCampaign(testCampaign);
+    useSimStore.setState({
+      stageIndex: 1,
+      collectedFacts: ['later-fact'],
+      revealedFacts: ['later-fact'],
+      pendingStageResolution: null,
+    });
+
+    useSimStore.getState().runCommand('whoami');
+
+    const state = useSimStore.getState();
+    expect(state.terminalHistory.at(-1)).toEqual({ input: 'whoami', output: ['root'] });
+    expect(state.pendingStageResolution).toBeNull();
+    expect(state.stageIndex).toBe(1);
   });
 });
 

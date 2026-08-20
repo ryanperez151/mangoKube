@@ -62,4 +62,44 @@ describe('parseCommand', () => {
     const outcome = parseCommand('rm -rf /', stage, new Set());
     expect(outcome).toBeNull();
   });
+
+  it('falls back to campaign-wide ambient commands', () => {
+    const ambientCommands = [
+      {
+        match: /^whoami$/i,
+        description: 'whoami',
+        outcome: { output: ['root'] },
+      },
+    ];
+
+    expect(parseCommand('whoami', stage, new Set(), {}, ambientCommands)?.output).toEqual([
+      'root',
+    ]);
+  });
+
+  it('keeps a matching stage command authoritative while it is fact-gated', () => {
+    const gatedStage: Stage = {
+      ...stage,
+      commands: [
+        {
+          match: /^whoami$/i,
+          description: 'whoami',
+          requiresFacts: ['seen-pod'],
+          outcome: { output: ['mission identity'] },
+        },
+      ],
+    };
+    const ambientCommands = [
+      {
+        match: /^whoami$/i,
+        description: 'whoami',
+        outcome: { output: ['root'] },
+      },
+    ];
+
+    expect(parseCommand('whoami', gatedStage, new Set(), {}, ambientCommands)).toBeNull();
+    expect(
+      parseCommand('whoami', gatedStage, new Set(['seen-pod']), {}, ambientCommands)?.output
+    ).toEqual(['mission identity']);
+  });
 });

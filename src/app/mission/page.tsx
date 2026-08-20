@@ -161,12 +161,16 @@ function MissionExperience() {
   const availableCommands = useMemo(() => {
     if (!stage) return [];
     const revealedSet = new Set(revealedFacts);
-    return stage.commands.filter(
+    const commands = [
+      ...stage.commands,
+      ...(campaign?.terminalProfile?.ambientCommands ?? []),
+    ];
+    return commands.filter(
       (command) =>
         isChoiceVisible(command.visibleWhen, decisions) &&
         (command.requiresFacts ?? []).every((factId) => revealedSet.has(factId))
     );
-  }, [stage, revealedFacts, decisions]);
+  }, [campaign, stage, revealedFacts, decisions]);
   const selectedEvent = arrivedEvents.find((event) => event.id === selectedEventId) ?? null;
   const objectiveSteps = stage?.objectiveSteps ?? [];
   const isSentinel = campaignId === 'sentinel';
@@ -331,6 +335,8 @@ function MissionExperience() {
               <Terminal
                 history={terminalHistory}
                 availableCommands={availableCommands}
+                prompt={campaign.terminalProfile?.prompt}
+                banner={campaign.terminalProfile?.banner}
                 value={terminalDraft}
                 onChange={setTerminalDraft}
                 onSubmit={handleCommand}

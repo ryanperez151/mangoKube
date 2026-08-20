@@ -209,7 +209,7 @@ export const infiltratorPrimer: CampaignPrimer = {
       title: 'How this terminal works',
       body: [
         'Type a command and press Enter. The console understands the commands that make sense for your current position in the operation, so an action becomes available once you have learned the thing it depends on.',
-        'The Available line beneath the prompt always lists what is in play right now. If a command is rejected, it is usually because a prerequisite step has not been done yet rather than because the syntax is wrong.',
+        'Run `help` for harmless local orientation commands. Tab completes a unique command prefix without putting mission answers on screen before you ask for them.',
         'The Guidance tab on the right escalates on demand — a nudge first, then the specific direction, then the exact command with a button to insert it. Nothing is scored, and reaching for it costs you nothing.',
       ],
     },
