@@ -3,6 +3,7 @@ import { generateNoiseEvents } from './noise';
 import { signalEvents } from './signal';
 
 export { TIME_RANGES, INCIDENT_NOW_ISO } from './timeRanges';
+export { COLUMN_PRESETS } from './columnPresets';
 
 /**
  * Noise is weighted toward the recent window so the default one-hour

@@ -1,6 +1,6 @@
 import type { Campaign } from '../types';
 import { sentinelAttackMap } from './attackMap';
-import { sentinelLogCorpus, TIME_RANGES } from './logs';
+import { COLUMN_PRESETS, sentinelLogCorpus, TIME_RANGES } from './logs';
 import { sentinelPrimer } from './primer';
 
 const IMPLANT_POD = 'ci-deploy-bot-7f9c4d6b6-x2k1p';
@@ -18,6 +18,7 @@ export const sentinelCampaign: Campaign = {
   logCorpus: sentinelLogCorpus,
   attackMap: sentinelAttackMap,
   timeRanges: TIME_RANGES,
+  columnPresets: COLUMN_PRESETS,
   factLibrary: {
     'evidence-interactive-shell': { id: 'evidence-interactive-shell', label: 'Interactive shell in a build pod', detail: 'EDR caught /bin/sh running inside ci-deploy-bot under the build agent. CI jobs are scripted and non-interactive — this was a person.' },
     'evidence-offhours-exec': { id: 'evidence-offhours-exec', label: 'Off-hours exec from an external IP', detail: 'The audit log shows create pods/exec at 02:14 UTC from 203.0.113.44, using the ci-deploy-bot service account. No pipeline runs in that window.' },

@@ -204,6 +204,8 @@ export interface Campaign {
   logCorpus?: LogEvent[];
   attackMap?: AttackMapNode[];
   timeRanges?: TimeRange[];
+  /** One-click column layouts for the log explorer. */
+  columnPresets?: ColumnPreset[];
 }
 
 export interface TerminalEntry {
