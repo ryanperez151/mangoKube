@@ -67,6 +67,39 @@ export function scanTokens(input: string): ScannedToken[] | null {
   return tokens;
 }
 
+export interface SplitPredicate {
+  field: string;
+  value: string;
+  negated: boolean;
+}
+
+/**
+ * Splits an already-unescaped token (see `scanTokens`) into its `-`, field,
+ * and value parts. Returns `null` only when there is no `=` anywhere in the
+ * token — that's the one case ambiguous enough that the two callers need to
+ * decide for themselves what it means (a bare search term for `parseQuery`,
+ * "not a predicate, leave it alone" for `applyValueFilter`'s matcher). An
+ * empty `field` or `value` is still a real split, just an invalid one —
+ * `parseQuery` turns those into named parse errors, while the matcher in
+ * `logFields.parseToken` treats them as "no match" and moves on, since a
+ * malformed sub-token elsewhere in the query is not something a value click
+ * should be rewriting.
+ *
+ * This one function used to be two: a single subtle divergence between them
+ * (accepting `!=`, say) would have `parseQuery` running a predicate that
+ * `applyValueFilter` could never recognize as already present, so a `+`
+ * click would append a duplicate token instead of toggling the existing one
+ * off — wrong output, no error, no test failure pointing at the cause.
+ */
+export function splitPredicate(token: string): SplitPredicate | null {
+  const negated = token.startsWith('-');
+  const body = negated ? token.slice(1) : token;
+  const equalsAt = body.indexOf('=');
+  if (equalsAt === -1) return null;
+
+  return { field: body.slice(0, equalsAt), value: body.slice(equalsAt + 1), negated };
+}
+
 export function parseQuery(input: string): QueryParseResult {
   const tokens = scanTokens(input.trim());
   if (tokens === null) return { ok: false, error: 'Unterminated quote in query.' };
@@ -76,23 +109,20 @@ export function parseQuery(input: string): QueryParseResult {
 
   for (const scanned of tokens) {
     const token = scanned.value;
-    const negated = token.startsWith('-');
-    const body = negated ? token.slice(1) : token;
-    const equalsAt = body.indexOf('=');
+    const split = splitPredicate(token);
 
-    if (equalsAt === -1) {
-      if (negated) {
+    if (split === null) {
+      if (token.startsWith('-')) {
         return {
           ok: false,
           error: 'Negated bare terms are not supported — use -field=value.',
         };
       }
-      terms.push(body);
+      terms.push(token);
       continue;
     }
 
-    const field = body.slice(0, equalsAt);
-    const value = body.slice(equalsAt + 1);
+    const { field, value, negated } = split;
     if (!field) return { ok: false, error: 'Missing field name before "=".' };
     if (!value) return { ok: false, error: `Missing value for field "${field}".` };
 

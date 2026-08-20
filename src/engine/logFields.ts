@@ -1,5 +1,5 @@
 import type { ColumnSort, LogEvent, LogSource } from '@/content/types';
-import { fieldValue, scanTokens } from './logQuery';
+import { fieldValue, scanTokens, splitPredicate } from './logQuery';
 
 export { fieldValue };
 
@@ -177,16 +177,19 @@ interface ParsedToken {
   negated: boolean;
 }
 
-/** Uses the already-unescaped value `scanTokens` produced — no quote-stripping left to do here. */
+/**
+ * Delegates the actual splitting to `logQuery.splitPredicate` — the field/value
+ * cut has to agree exactly with `parseQuery`'s, or a query this matcher can't
+ * recognize as an existing predicate could still be one `parseQuery` accepts,
+ * and a `+`/`-` click would append a duplicate token instead of toggling the
+ * one already there. An empty field or value means the token isn't a usable
+ * predicate for matching purposes, even though `splitPredicate` itself stays
+ * silent about that — `parseQuery` is the one that turns those into errors.
+ */
 function parseToken(token: string): ParsedToken | null {
-  const negated = token.startsWith('-');
-  const body = negated ? token.slice(1) : token;
-  const equalsAt = body.indexOf('=');
-  if (equalsAt <= 0) return null;
-
-  const value = body.slice(equalsAt + 1);
-  if (!value) return null;
-  return { field: body.slice(0, equalsAt), value, negated };
+  const split = splitPredicate(token);
+  if (!split || !split.field || !split.value) return null;
+  return split;
 }
 
 /**

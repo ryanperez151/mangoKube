@@ -1,6 +1,36 @@
 import { describe, it, expect } from 'vitest';
-import { parseQuery, executeQuery } from './logQuery';
+import { parseQuery, executeQuery, splitPredicate } from './logQuery';
 import type { LogEvent, TimeRange } from '@/content/types';
+
+describe('splitPredicate', () => {
+  it('splits a field=value token', () => {
+    expect(splitPredicate('source=edr')).toEqual({ field: 'source', value: 'edr', negated: false });
+  });
+
+  it('splits a negated token', () => {
+    expect(splitPredicate('-user=alice')).toEqual({ field: 'user', value: 'alice', negated: true });
+  });
+
+  it('returns null for a bare term carrying no "="', () => {
+    expect(splitPredicate('healthz')).toBeNull();
+  });
+
+  it('returns null for a negated bare term', () => {
+    expect(splitPredicate('-healthz')).toBeNull();
+  });
+
+  it('reports an empty field for a leading "="', () => {
+    expect(splitPredicate('=ci-deploy-bot')).toEqual({
+      field: '',
+      value: 'ci-deploy-bot',
+      negated: false,
+    });
+  });
+
+  it('reports an empty value for a trailing "="', () => {
+    expect(splitPredicate('user=')).toEqual({ field: 'user', value: '', negated: false });
+  });
+});
 
 describe('parseQuery', () => {
   it('parses a single field predicate', () => {
