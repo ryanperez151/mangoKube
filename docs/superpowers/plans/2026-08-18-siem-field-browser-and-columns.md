@@ -1365,6 +1365,21 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 ### Task 5: Column header menu
 
+> **Superseded in part — read this before the code below.** The reference
+> implementation and tests in this task declare `role="menu"` with
+> `role="menuitem"` children. Review found that it implemented none of the
+> keyboard contract those roles promise, that its Escape handler sat on a
+> sibling of the focused trigger so it never fired, and that the test which
+> appeared to cover Escape dispatched directly on the popover and so passed
+> against broken code. **What shipped is a plain disclosure popover**: no
+> `role="menu"`, no `role="menuitem"`, no `aria-haspopup`; three ordinary
+> buttons labelled "Move left", "Move right", "Remove column" behind a trigger
+> carrying `aria-expanded` and `aria-controls`, with Escape handled on the
+> trigger, dismissal on outside click and on focus leaving, and focus placed by
+> `ResultsTable` after a removal. Task 6's queries below were updated to match.
+> Treat the ARIA markup in this task as a record of what was rejected, not as
+> the intended design.
+
 **Files:**
 - Create: `src/components/LogExplorer/ColumnHeaderMenu.tsx`
 - Test: `src/components/LogExplorer/ColumnHeaderMenu.test.tsx`
