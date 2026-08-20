@@ -1724,14 +1724,14 @@ describe('ResultsTable', () => {
   it('removes a column from its header menu', () => {
     const props = renderTable();
     fireEvent.click(screen.getByRole('button', { name: /column options for source/i }));
-    fireEvent.click(screen.getByRole('menuitem', { name: /remove column/i }));
+    fireEvent.click(screen.getByRole('button', { name: /remove column/i }));
     expect(props.onColumnFieldsChange).toHaveBeenCalledWith(['message']);
   });
 
   it('moves a column from its header menu', () => {
     const props = renderTable();
     fireEvent.click(screen.getByRole('button', { name: /column options for message/i }));
-    fireEvent.click(screen.getByRole('menuitem', { name: /move left/i }));
+    fireEvent.click(screen.getByRole('button', { name: /move left/i }));
     expect(props.onColumnFieldsChange).toHaveBeenCalledWith(['message', 'source']);
   });
 });
