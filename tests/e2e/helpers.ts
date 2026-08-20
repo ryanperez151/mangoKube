@@ -37,7 +37,10 @@ export async function continueStage(page: Page, beginNext = true) {
 }
 
 export async function pinFinding(page: Page, message: string) {
-  await page.getByRole('button', { name: message, exact: true }).press('Enter');
+  // The row-select button's accessible name is `Inspect ${message}` — it carries
+  // the message so a row stays identifiable even when the message column isn't
+  // one of the selected result columns (see ResultsTable's "Inspect" button).
+  await page.getByRole('button', { name: `Inspect ${message}`, exact: true }).press('Enter');
   await page.getByRole('button', { name: 'Pin to case file' }).press('Enter');
 }
 

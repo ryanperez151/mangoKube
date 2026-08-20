@@ -9,7 +9,7 @@ interface FieldValueListProps {
 }
 
 const FILTER_BUTTON_CLASS =
-  'px-1 font-mono text-xs leading-none text-mango-300/60 hover:text-mango-300';
+  'flex h-6 w-6 shrink-0 items-center justify-center font-mono text-xs text-mango-300/60 hover:text-mango-300';
 
 /**
  * Explicit + and − rather than modifier-clicks: a modifier-click has no
@@ -18,7 +18,7 @@ const FILTER_BUTTON_CLASS =
 export function FieldValueList({ field, values, onFilter }: FieldValueListProps) {
   if (values.length === 0) {
     return (
-      <p data-testid="no-values" className="px-2 py-1 text-[11px] text-slate-500">
+      <p data-testid="no-values" className="px-2 py-1 text-[11px] text-slate-400">
         No values in these results.
       </p>
     );
@@ -32,7 +32,7 @@ export function FieldValueList({ field, values, onFilter }: FieldValueListProps)
             <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-slate-200" title={entry.value}>
               {entry.value}
             </span>
-            <span className="font-mono text-[11px] text-slate-500">{entry.count}</span>
+            <span className="font-mono text-[11px] text-slate-400">{entry.count}</span>
             <button
               type="button"
               aria-label={`Filter to ${field}=${entry.value}`}

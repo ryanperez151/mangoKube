@@ -87,3 +87,25 @@ test('debrief scene passes axe WCAG 2.2 AA', async ({ page }) => {
   await expect(page.getByRole('main', { name: 'Operation outcome debrief' })).toBeVisible();
   await expectWcag22AA(page, 'debrief');
 });
+
+test('field browser passes axe WCAG 2.2 AA, open and pinned', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await seedProgress(page, 'sentinel', 0, { seenBriefingIds: ['triage'] });
+  await page.goto('/mission');
+  await expect(page.getByRole('main', { name: 'Mission workspace' })).toBeVisible();
+  await expect(page.getByText(/could not be read|was repaired/i)).toHaveCount(0);
+
+  await activate(page, 'button', 'Open field browser');
+  await expect(page.getByTestId('field-panel')).toBeVisible();
+  await expectWcag22AA(page, 'field browser open');
+
+  await activate(page, 'button', 'Pin field browser');
+  await expect(page.getByTestId('field-panel')).toBeVisible();
+  await expectWcag22AA(page, 'field browser pinned');
+
+  const overflow = await page.evaluate(() => ({
+    htmlX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    bodyX: document.body.scrollWidth - document.body.clientWidth,
+  }));
+  expect(overflow).toEqual({ htmlX: 0, bodyX: 0 });
+});

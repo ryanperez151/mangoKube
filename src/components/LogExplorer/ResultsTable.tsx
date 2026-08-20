@@ -77,7 +77,7 @@ export function ResultsTable({
                 type="button"
                 aria-label="Sort by time"
                 onClick={() => onSortChange(nextSort(sort, TIME_FIELD))}
-                className="hover:text-mango-300"
+                className="inline-flex h-6 items-center hover:text-mango-300"
               >
                 Time
                 {sort.field === TIME_FIELD && (
@@ -98,7 +98,7 @@ export function ResultsTable({
                   type="button"
                   aria-label={`Sort by ${field}`}
                   onClick={() => onSortChange(nextSort(sort, field))}
-                  className="hover:text-mango-300"
+                  className="inline-flex h-6 items-center hover:text-mango-300"
                 >
                   {field}
                   {sort.field === field && (

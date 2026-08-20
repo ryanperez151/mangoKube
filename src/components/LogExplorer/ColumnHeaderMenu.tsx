@@ -116,7 +116,7 @@ export function ColumnHeaderMenu({ field, index, total, onMove, onRemove }: Colu
         onClick={() => setOpen((current) => !current)}
         onKeyDown={handleTriggerKeyDown}
         className={cn(
-          'px-1 text-mango-300/60 hover:text-mango-300',
+          'flex h-6 w-6 items-center justify-center text-mango-300/60 hover:text-mango-300',
           open && 'text-mango-300'
         )}
       >

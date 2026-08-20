@@ -84,7 +84,10 @@ export function FieldPanel({
             aria-label={pinned ? 'Unpin field browser' : 'Pin field browser'}
             aria-pressed={pinned}
             onClick={onTogglePinned}
-            className={cn('px-1 text-xs', pinned ? 'text-mango-300' : 'text-mango-300/50 hover:text-mango-300')}
+            className={cn(
+              'flex h-6 w-6 items-center justify-center text-xs',
+              pinned ? 'text-mango-300' : 'text-mango-300/50 hover:text-mango-300'
+            )}
           >
             <span aria-hidden="true">📌</span>
           </button>
@@ -92,7 +95,7 @@ export function FieldPanel({
             type="button"
             aria-label="Close field browser"
             onClick={onClose}
-            className="px-1 text-xs text-mango-300/50 hover:text-mango-300"
+            className="flex h-6 w-6 items-center justify-center text-xs text-mango-300/50 hover:text-mango-300"
           >
             <span aria-hidden="true">✕</span>
           </button>
@@ -114,7 +117,7 @@ export function FieldPanel({
       <h3 className={SECTION_HEADING_CLASS}>Selected fields</h3>
       <ul data-testid="selected-fields" className="px-3 py-1">
         {selectedFields.length === 0 && (
-          <li className="py-1 text-[11px] text-slate-500">Time only.</li>
+          <li className="py-1 text-[11px] text-slate-400">Time only.</li>
         )}
         {selectedFields.map((field, index) => (
           <li key={field} className="flex items-center gap-1 py-0.5">
@@ -124,7 +127,7 @@ export function FieldPanel({
               aria-label={`Move ${field} up`}
               disabled={index === 0}
               onClick={() => onMoveField(field, -1)}
-              className="px-1 text-xs text-mango-300/60 hover:text-mango-300 disabled:text-slate-600"
+              className="flex h-6 w-6 shrink-0 items-center justify-center text-xs text-mango-300/60 hover:text-mango-300 disabled:text-slate-600"
             >
               <span aria-hidden="true">▲</span>
             </button>
@@ -133,7 +136,7 @@ export function FieldPanel({
               aria-label={`Move ${field} down`}
               disabled={index === selectedFields.length - 1}
               onClick={() => onMoveField(field, 1)}
-              className="px-1 text-xs text-mango-300/60 hover:text-mango-300 disabled:text-slate-600"
+              className="flex h-6 w-6 shrink-0 items-center justify-center text-xs text-mango-300/60 hover:text-mango-300 disabled:text-slate-600"
             >
               <span aria-hidden="true">▼</span>
             </button>
@@ -141,7 +144,7 @@ export function FieldPanel({
               type="button"
               aria-label={`Remove ${field} column`}
               onClick={() => onToggleField(field)}
-              className="px-1 text-xs text-mango-300/60 hover:text-mango-300"
+              className="flex h-6 w-6 shrink-0 items-center justify-center text-xs text-mango-300/60 hover:text-mango-300"
             >
               <span aria-hidden="true">✕</span>
             </button>
@@ -186,7 +189,7 @@ export function FieldPanel({
                       disabled={entry.count === 0}
                       onClick={() => onToggleField(entry.field)}
                       className={cn(
-                        'min-w-0 flex-1 truncate text-left font-mono text-xs',
+                        'flex min-h-6 min-w-0 flex-1 items-center truncate text-left font-mono text-xs',
                         entry.count === 0
                           ? 'cursor-not-allowed text-slate-600'
                           : selectedFields.includes(entry.field)
@@ -196,7 +199,7 @@ export function FieldPanel({
                     >
                       {entry.field}
                     </button>
-                    <span className="font-mono text-[10px] text-slate-500">
+                    <span className="font-mono text-[10px] text-slate-400">
                       {entry.count} · {Math.round(entry.coverage * 100)}%
                     </span>
                     <button
@@ -206,7 +209,7 @@ export function FieldPanel({
                       onClick={() =>
                         setExpandedField((current) => (current === entry.field ? null : entry.field))
                       }
-                      className="px-1 text-[10px] text-mango-300/60 hover:text-mango-300"
+                      className="flex h-6 w-6 shrink-0 items-center justify-center text-[10px] text-mango-300/60 hover:text-mango-300"
                     >
                       <span aria-hidden="true">{expandedField === entry.field ? '▾' : '▸'}</span>
                     </button>
